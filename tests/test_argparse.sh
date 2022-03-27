@@ -1,12 +1,7 @@
-# vi: se fdm=marker
-
 SCRIPT_DIR=$(dirname $BASH_SOURCE)
 source "$SCRIPT_DIR/../argparse.sh"
 
 test_context "Testing argparse library"
-
-# Test add_opt {{{1
-################################################################
 
 function test_opt {
 
@@ -42,9 +37,6 @@ function test_opt {
 	ap_add_help_opt || return 1
 	expect_success read_args "-h" || return 1
 }
-
-# Test add_pos {{{1
-################################################################
 
 function test_pos {
 

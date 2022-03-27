@@ -12,16 +12,41 @@ source "$(dirname $BASH_SOURCE)/logging.sh"
 OS_DRYRUN=
 
 function os_exec {
+	# Run a command
+
+	local status=0
 
 	if [[ -z $OS_DRYRUN ]] ; then
 		if command -v $1 2>&1 >/dev/null ; then
-			$*
+			"$@"
+			status=$?
 		else
 			lg_error "Command \"$1\" is not available."
 		fi
 	else
 		echo "$*"
 	fi
+
+	return $status
+}
+
+function os_eval {
+	# Use `eval` to run a command
+
+	local status=0
+
+	if [[ -z $OS_DRYRUN ]] ; then
+		if command -v $1 2>&1 >/dev/null ; then
+			eval "$@"
+			status=$?
+		else
+			lg_error "Command \"$1\" is not available."
+		fi
+	else
+		echo "$*"
+	fi
+
+	return $status
 }
 
 function os_try_exec {

@@ -1,0 +1,50 @@
+#!/bin/bash
+
+SCRIPT_FILE=$(basename $0)
+SCRIPT_DIR=$(dirname $0)
+source "$SCRIPT_DIR/all.sh"
+
+function read_args {
+
+	ap_add_debug_opt
+	ap_add_dryrun_opt
+	ap_add_help_opt
+	ap_add_version_opt
+	ap_add_opt_str 'p,pattern' PATTERN '^source .*bash-lib\/%LIB%"?$'\
+		"The pattern to use to match source lines."
+	ap_add_opt_str "l,lib-dir" LIBDIR "$SCRIPT_DIR" "The directory where to"\
+		"find the library files."
+	ap_add_pos_one INPUT_FILE "The input script file in which to replace "\
+		"each sourced library with its code."
+	ap_add_pos_one OUTPUT_FILE "The file in which to write the resulting"\
+		"script."
+	ap_read_args "$@"
+}
+
+function main {
+
+	read_args "$@"
+
+	# BUG recursive libs sourcing
+	# os.sh sources logging.sh
+	# argparse.sh sources logging.sh
+	# all.sh sources all libs
+
+	# BUG How to handle multiple sourcing of the same library?
+
+	local awkcode=
+	for lib in "$LIBDIR"/*.sh ; do
+		local libfile=$(basename "$lib")
+		local pattern=$(echo $PATTERN | sed "s/%LIB%/$libfile/")
+		awkcode+=" /$pattern/ { system(\"cat $lib\") ; next }"
+	done
+	awkcode+=" 1"
+	if [[ -z $OS_DRYRUN ]] ; then
+		awk "$awkcode" $INPUT_FILE >$OUTPUT_FILE
+	else
+		echo "awk \"$awkcode\" $INPUT_FILE >$OUTPUT_FILE"
+	fi
+}
+
+main "$@"
+exit 0
