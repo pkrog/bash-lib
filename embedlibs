@@ -10,7 +10,7 @@ function read_args {
 	ap_add_dryrun_opt
 	ap_add_help_opt
 	ap_add_version_opt
-	ap_add_opt_str 'p,pattern' PATTERN '^source .*bash-lib\/%LIB%"?$'\
+	ap_add_opt_str 'p,pattern' PATTERN '^source .*\/%LIB%"?$'\
 		"The pattern to use to match source lines."
 	ap_add_opt_str "l,lib-dir" LIBDIR "$SCRIPT_DIR" "The directory where to"\
 		"find the library files."
@@ -21,29 +21,77 @@ function read_args {
 	ap_read_args "$@"
 }
 
+function embed_lib {
+
+	local libpath="$1"
+	local infile="$2"
+	local outfile="$3"
+	local libfile=$(basename "$libpath")
+
+	local pattern=$(echo $PATTERN | sed "s/%LIB%/$libfile/")
+	local awkcode="/$pattern/ { system(\"cat $libpath\") ; next } 1"
+	if [[ -z $OS_DRYRUN ]] ; then
+		awk "$awkcode" $infile >$outfile
+	else
+		echo "awk \"$awkcode\" $infile >$outfile"
+	fi
+}
+
+function remove_lib {
+
+	local libfile="$1"
+	local infile="$2"
+	local outfile="$3"
+
+	local pattern=$(echo $PATTERN | sed "s/%LIB%/$libfile/")
+	local awkcode="/$pattern/ { next } 1"
+	if [[ -z $OS_DRYRUN ]] ; then
+		awk "$awkcode" $infile >$outfile
+	else
+		echo "awk \"$awkcode\" $infile >$outfile"
+	fi
+}
+
 function main {
 
 	read_args "$@"
 
-	# BUG recursive libs sourcing
-	# os.sh sources logging.sh
-	# argparse.sh sources logging.sh
-	# all.sh sources all libs
+	local file="$INPUT_FILE"
+	declare -a embedded_libs=()
+	local same_file=
+	while [[ -z $same_file ]] ; do
 
-	# BUG How to handle multiple sourcing of the same library?
+		same_file=1
+		for libpath in "$LIBDIR"/*.sh ; do
+			local outfile=$(mktemp -t $SCRIPT_FILE.XXXXXX)
+			local libfile=$(basename "$libpath")
 
-	local awkcode=
-	for lib in "$LIBDIR"/*.sh ; do
-		local libfile=$(basename "$lib")
-		local pattern=$(echo $PATTERN | sed "s/%LIB%/$libfile/")
-		awkcode+=" /$pattern/ { system(\"cat $lib\") ; next }"
+			lg_debug 1 "10 libpath=$libpath"
+			lg_debug 1 "11 embedded_libs=${embedded_libs[@]}"
+			# Already embedded
+			if [[ " ${embedded_libs[@]} " == *" $libfile "* ]] ; then
+				remove_lib "$libfile" "$file" "$outfile"
+
+			# Embed if found
+			else
+				embed_lib "$libpath" "$file" "$outfile"
+				diff -q "$file" "$outfile" >/dev/null || \
+					embedded_libs+=($libfile)
+			fi
+			lg_debug 1 "20 embedded_libs=${embedded_libs[@]}"
+
+			# Set new file
+			if ! diff -q "$file" "$outfile" >/dev/null ; then
+				lg_debug 1 "File \"$file\" has been modified. Now using"\
+					"\"$outfile\"."
+				file="$outfile"
+				same_file=
+			fi
+		done
 	done
-	awkcode+=" 1"
-	if [[ -z $OS_DRYRUN ]] ; then
-		awk "$awkcode" $INPUT_FILE >$OUTPUT_FILE
-	else
-		echo "awk \"$awkcode\" $INPUT_FILE >$OUTPUT_FILE"
-	fi
+
+	cp "$file" "$OUTPUT_FILE"
+
 }
 
 main "$@"
