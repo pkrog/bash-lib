@@ -62,6 +62,52 @@ function os_try_exec {
 	fi
 }
 
+function os_exec_lock {
+	# Execute a command only if lock file is available
+	local cmd="$1"
+
+	PID=$$
+	lg_debug 1 "PID=$PID"
+
+	# Open lock file with file descriptor 9
+	exec 9<>$OS_LOCK_FILE
+
+	# Try to lock file descriptor 9
+	if flock -n 9 ; then
+
+		# Write PID into lock file
+		echo $PID >&9
+
+		# Execute
+		"$cmd"
+
+		# Remove lock file
+		unlink "$OS_LOCK_FILE"
+	else
+		running_pid=$(cat "$OS_LOCK_FILE")
+		lg_error "Cannot run \"$cmd\", lock file $OS_LOCK_FILE is already"\
+			"taken by process $running_pid."
+	fi
+}
+
+function os_force_remove_lock {
+
+	local kill_cmd="$1"
+
+	if [[ -f $OS_LOCK_FILE ]] ; then
+		lg_debug 1 "Removing lock file $OS_LOCK_FILE."
+		local running_pid=$(cat "$OS_LOCK_FILE")
+		if [[ -n $running_pid ]] ; then
+
+			# Kill running process
+			lg_debug 1 "Calling \"$kill_cmd\" to kill processes."
+			"$kill_cmd"
+
+			[[ -f $OS_LOCK_FILE ]] && rm $OS_LOCK_FILE
+		fi
+	fi
+}
+
 function os_check_commands {
 
 	# Check that all submitted commands are available.
