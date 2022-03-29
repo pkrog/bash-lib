@@ -12,7 +12,9 @@ fi
 
 LG_DEBUG=0
 LG_QUIET=
+LG_LOG_TO_FILE=
 LG_FILE=
+LG_FILE_MAX_SIZE=10000 # 10 KiB
 
 function lg_quit {
 
@@ -29,7 +31,7 @@ function lg_error {
 
 	local msg="$@"
 
-	[[ -n $LG_FILE ]] && echo "[ERROR] $msg" >>$LG_FILE
+	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE ]] && echo "[ERROR] $msg" >>$LG_FILE
 	[[ -n $LG_QUIET ]] || echo "[ERROR] $msg" >&2
 
 	exit 1
@@ -39,7 +41,7 @@ function lg_warning {
 
 	local msg="$@"
 
-	[[ -n $LG_FILE ]] && echo "[WARNING] $msg" >>$LG_FILE
+	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE ]] && echo "[WARNING] $msg" >>$LG_FILE
 	[[ -n $LG_QUIET ]] || echo "[WARNING] $msg" >&2
 }
 
@@ -48,7 +50,8 @@ function lg_debug {
 	local lvl=$1 ; shift
 	local msg="$@"
 
-	[[ -n $LG_FILE && $LG_DEBUG -ge $lvl ]] && echo "[DEBUG] $msg" >>$LG_FILE
+	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE && $LG_DEBUG -ge $lvl ]] && \
+		echo "[DEBUG] $msg" >>$LG_FILE
 	[[ -z $LG_QUIET && $LG_DEBUG -ge $lvl ]] && echo "[DEBUG] $msg" >&2
 }
 
@@ -56,6 +59,6 @@ function lg_info {
 
 	local msg="$@"
 
-	[[ -n $LG_FILE ]] && echo "[INFO] $msg" >>$LG_FILE
+	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE ]] && echo "[INFO] $msg" >>$LG_FILE
 	[[ -n $LG_QUIET ]] || echo "[INFO] $msg"
 }

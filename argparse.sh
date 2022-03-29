@@ -316,6 +316,20 @@ function ap_add_quiet_opt {
 		"library."
 }
 
+function ap_add_log_opt {
+	ap_add_opt_flag "l,log" LG_LOG_TO_FILE "Enable logging to file."
+}
+
+function ap_add_log_file_opt {
+	ap_add_opt_str "log-file" LG_FILE "$HOME/.$_AP_SCRIPT_NAME.log" \
+		"Set the file to use for logging."
+}
+
+function ap_add_log_file_size_opt {
+	ap_add_opt_int "log-file-size" LG_FILE_MAX_SIZE 10000 \
+		"Set the maximum size of the log file."
+}
+
 function ap_add_dryrun_opt {
 	ap_add_opt_flag "dryrun,dry-run" OS_DRYRUN "Display what would be run,"\
 		"but do not execute anything."
