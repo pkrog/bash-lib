@@ -18,6 +18,8 @@ function ap_reset_args {
 	declare -g  _AP_SCRIPT_VERSION=$VERSION
 	declare -g  _AP_SCRIPT_SHORT_DESC=
 	declare -g  _AP_SCRIPT_LONG_DESC=
+	declare -g  _AP_USE_ENV_VAR=
+	declare -gu _AP_ENV_VAR_PREFIX=
 	declare -ga _AP_POS_DESC=()
 	declare -ga _AP_POS_VAR=()
 	declare -ga _AP_POS_NVALUES=()
@@ -31,6 +33,7 @@ function ap_reset_args {
 	declare -gA _AP_OPT_TYPE=()
 	declare -gA _AP_OPT_DEFAULT=()
 	declare -gA _AP_OPT_VALUE=()
+	declare -gA _AP_OPT_ENV_VAR=()
 }
 
 
@@ -40,6 +43,32 @@ function ap_set_short_description {
 
 function ap_set_long_description {
 	_AP_SCRIPT_LONG_DESC="$*"
+}
+
+function ap_use_env_var {
+	# Enable use of environment variables to set arguments.
+
+	local prefix="$1"
+
+	if [[ -n $prefix ]] ; then
+		_AP_ENV_VAR_PREFIX="$prefix"
+	else
+		_AP_ENV_VAR_PREFIX="$_AP_SCRIPT_NAME"
+		_AP_ENV_VAR_PREFIX=$(echo $_AP_ENV_VAR_PREFIX | sed 's/[^A-Z_]/_/g')
+	fi
+
+	[[ $s =~ [^A-Z_] ]] && lg_error "Prefix for environment variables must"\
+		"contain only '_' or upper ascii letters."
+	
+	_AP_USE_ENV_VAR=1
+}
+
+function _ap_get_env_var_name {
+
+	local var="$1"
+
+	declare -u envvar="${_AP_ENV_VAR_PREFIX}_$var"
+	echo "$envvar"
 }
 
 function _ap_define_name_and_aliases {
@@ -74,9 +103,16 @@ function _ap_define_var_opt {
 	local default="$5"
 	local value="$6" # For flag type, value to set if flag is enabled.
 	                 # For enum, the comma separated list of allowed values.
+	local name=${names%%,*}
+
+	# Use env var
+	if [[ -n $_AP_USE_ENV_VAR ]] ; then
+		local envvar=$(_ap_get_env_var_name "$var")
+		_AP_OPT_ENV_VAR+=("$name" "$envvar")
+		[[ -n $default ]] || default=${!envvar}
+	fi
 
 	declare -g "$var=$default"
-	local name=${names%%,*}
 	_ap_define_name_and_aliases "$names"
 	_AP_OPT_VAR+=("$name" "$var")
 	_AP_OPT_DESC+=("$name" "$desc")
@@ -155,13 +191,6 @@ function ap_add_opt_oflags {
 	[[ $name =~ , ]] && lg_error "In order to define opposite flags, you need"\
 		"to provide only one name. You provided \"$name\"."
 
-	local state="Flag is currently"
-	if [[ -z $default ]] ; then
-		state+=" OFF."
-	else
-		state+=" ON."
-	fi
-
 	_ap_define_var_opt "$name" "$var" flag "$desc $state" "$default"
 	_ap_define_var_opt "no-$name" "$var" rflag "$rdesc $state" "$default"
 }
@@ -233,9 +262,11 @@ function _ap_print_options {
 		echo # Blank line
 		echo -n "$indent" && _ap_print_opt_flags $opt
 		type_var=${_AP_OPT_TYPE[$opt]}
-		[[ $type_var == str ]] && echo -n " <string>"
-		[[ $type_var == int ]] && echo -n " <integer>"
-		[[ $type_var == enum ]] && echo -n " <choice>"
+		case $type_var in
+			str) echo -n " <string>" ;;
+			int) echo -n " <integer>" ;;
+			enum) echo -n " <choice>" ;;
+		esac
 		echo
 
 		# Description
@@ -246,8 +277,16 @@ function _ap_print_options {
 				desc+=" Allowed values are: $allowed_values."
 		fi
 		default="${_AP_OPT_DEFAULT[$opt]}"
-		[[ -z $default ]] || desc+=" Default value is \"$default\"."
-		fold -s -w $((80-${#indent}*2)) <<<"$desc" | \
+		case $type_var in
+			flag) if [[ -z $default ]] ; then desc+=" Disabled by default." ; \
+				else desc+=" Enabled by default." ; fi ;;
+			rflag) ;;
+			*) [[ -z $default ]] || desc+=" Default value is \"$default\"." ;;
+		esac
+		envvar="${_AP_OPT_ENV_VAR[$opt]}"
+		[[ -z $envvar ]] || \
+			desc+=" Can be set with environment variable $envvar."
+		sed 's/  \+/ /g' <<<"$desc" | fold -s -w $((80-${#indent}*2)) | \
 			sed "s/^/$indent$indent/"
 	done
 }
@@ -523,7 +562,9 @@ function ap_read_args {
 
 	# Debug messages
 	lg_debug 1 "Arguments: $args"
-	for var in ${_AP_OPT_VAR[@]} ${_AP_POS_VAR[@]} ; do
+	local vars=$(tr " " "\n" <<< "${_AP_OPT_VAR[@]} ${_AP_POS_VAR[@]}" | sort \
+		| uniq)
+	for var in $vars ; do
 		lg_debug 1 "$var=${!var}"
 	done
 
