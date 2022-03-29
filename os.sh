@@ -100,8 +100,10 @@ function os_force_remove_lock {
 		if [[ -n $running_pid ]] ; then
 
 			# Kill running process
-			lg_debug 1 "Calling \"$kill_cmd\" to kill processes."
-			"$kill_cmd"
+			if [[ -n $kill_cmd ]] ; then
+				lg_debug 1 "Calling \"$kill_cmd\" to kill processes."
+				"$kill_cmd"
+			fi
 
 			[[ -f $OS_LOCK_FILE ]] && rm $OS_LOCK_FILE
 		fi
