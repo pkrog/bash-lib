@@ -128,7 +128,7 @@ function ap_add_opt_flag {
 	shift 2
 	local desc="$*"
 
-	_ap_define_var_opt "$names" "$var" flag "$desc"
+	_ap_define_var_opt "$names" "$var" flag "$desc" ""
 }
 
 function ap_add_opt_rflag {
@@ -139,10 +139,7 @@ function ap_add_opt_rflag {
 	shift 2
 	local desc="$*"
 
-	# Set the flag now
-	declare -g "$var=1"
-
-	_ap_define_var_opt "$names" "$var" rflag "$desc"
+	_ap_define_var_opt "$names" "$var" rflag "$desc" 1
 }
 
 function ap_add_opt_oflags {
@@ -158,8 +155,6 @@ function ap_add_opt_oflags {
 	[[ $name =~ , ]] && lg_error "In order to define opposite flags, you need"\
 		"to provide only one name. You provided \"$name\"."
 
-	# Set the default value now
-	declare -g "$var=$default"
 	local state="Flag is currently"
 	if [[ -z $default ]] ; then
 		state+=" OFF."
@@ -167,8 +162,8 @@ function ap_add_opt_oflags {
 		state+=" ON."
 	fi
 
-	_ap_define_var_opt "$name" "$var" flag "$desc $state"
-	_ap_define_var_opt "no-$name" "$var" rflag "$rdesc $state"
+	_ap_define_var_opt "$name" "$var" flag "$desc $state" "$default"
+	_ap_define_var_opt "no-$name" "$var" rflag "$rdesc $state" "$default"
 }
 
 function ap_add_opt_sflag {
