@@ -26,11 +26,19 @@ function embed_lib {
 	local libpath="$1"
 	local infile="$2"
 	local outfile="$3"
+	lg_debug 1 "embed_lib() libpath=$libpath"
+	lg_debug 1 "embed_lib() PWD=$PWD"
 	local libfile=$(basename "$libpath")
+	lg_debug 1 "embed_lib() libfile=$libfile"
 
 	local pattern=$(echo $PATTERN | sed "s/%LIB%/$libfile/")
-	local awkcode="/$pattern/ { system(\"cat $libpath\") ; next } 1"
+	declare -a instr=("print(\"_BASH_LIB_EMBEDDED=1\")")
+	instr+=("system(\"cat $libpath\")")
+	instr+=("next")
+	local action=$(st_join " ; " "${instr[@]}")
+	local awkcode="/$pattern/ { $action } 1"
 	if [[ -z $OS_DRYRUN ]] ; then
+		lg_debug 1 "awk \"$awkcode\" $infile >$outfile"
 		awk "$awkcode" $infile >$outfile
 	else
 		echo "awk \"$awkcode\" $infile >$outfile"
@@ -66,8 +74,8 @@ function main {
 			local outfile=$(mktemp -t $SCRIPT_FILE.XXXXXX)
 			local libfile=$(basename "$libpath")
 
-			lg_debug 1 "10 libpath=$libpath"
-			lg_debug 1 "11 embedded_libs=${embedded_libs[@]}"
+			lg_debug 1 "main libpath=$libpath"
+			lg_debug 1 "main embedded_libs=${embedded_libs[@]}"
 			# Already embedded
 			if [[ " ${embedded_libs[@]} " == *" $libfile "* ]] ; then
 				remove_lib "$libfile" "$file" "$outfile"
@@ -78,7 +86,7 @@ function main {
 				diff -q "$file" "$outfile" >/dev/null || \
 					embedded_libs+=($libfile)
 			fi
-			lg_debug 1 "20 embedded_libs=${embedded_libs[@]}"
+			lg_debug 1 "main embedded_libs=${embedded_libs[@]}"
 
 			# Set new file
 			if ! diff -q "$file" "$outfile" >/dev/null ; then

@@ -4,8 +4,11 @@
 #   "_ap_" for the private functions.
 #   "_AP_" for the private global variables or constants.
 
-[[ -z $_AP_SOURCED ]] || return 0
-_AP_SOURCED=1
+# Include guard
+if [[ -z $_BASH_LIB_EMBEDDED ]] ; then
+	[[ -z $_AP_SOURCED ]] || return 0
+	_AP_SOURCED=1
+fi
 
 source "$(dirname $BASH_SOURCE)/logging.sh"
 
@@ -275,7 +278,11 @@ function _ap_print_usage {
 }
 
 function ap_print_version {
-	echo "$_AP_SCRIPT_VERSION"
+	if [[ -n $_AP_SCRIPT_VERSION ]] ; then
+		echo "$_AP_SCRIPT_VERSION"
+	else
+		echo "Unknown version."
+	fi
 	exit 0
 }
 

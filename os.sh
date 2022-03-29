@@ -4,8 +4,11 @@
 #   "_os_" for the private functions.
 #   "_OS_" for the private global variables or constants.
 
-[[ -z $_OS_SOURCED ]] || return 0
-_OS_SOURCED=1
+# Include guard
+if [[ -z $_BASH_LIB_EMBEDDED ]] ; then
+	[[ -z $_OS_SOURCED ]] || return 0
+	_OS_SOURCED=1
+fi
 
 source "$(dirname $BASH_SOURCE)/logging.sh"
 

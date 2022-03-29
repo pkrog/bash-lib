@@ -4,8 +4,11 @@
 #   "_lg_" for the private functions.
 #   "_LG_" for the private global variables or constants.
 
-[[ -z $_LG_SOURCED ]] || return 0
-_LG_SOURCED=1
+# Include guard
+if [[ -z $_BASH_LIB_EMBEDDED ]] ; then
+	[[ -z $_LG_SOURCED ]] || return 0
+	_LG_SOURCED=1
+fi
 
 LG_DEBUG=0
 LG_QUIET=
