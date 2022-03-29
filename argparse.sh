@@ -109,7 +109,7 @@ function _ap_define_var_opt {
 	if [[ -n $_AP_USE_ENV_VAR ]] ; then
 		local envvar=$(_ap_get_env_var_name "$var")
 		_AP_OPT_ENV_VAR+=("$name" "$envvar")
-		[[ -n $default ]] || default=${!envvar}
+		[[ ! ${!envvar} ]] || default=${!envvar}
 	fi
 
 	declare -g "$var=$default"
