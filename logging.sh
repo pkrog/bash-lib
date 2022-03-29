@@ -27,11 +27,27 @@ function lg_quit {
 	exit $status
 }
 
+function _lg_write_in_file {
+
+	local msg="$*"
+
+	local sz=$(stat --printf="%s" "$LG_FILE")
+	[[ $sz -le $LG_FILE_MAX_SIZE ]] || rm $LG_FILE
+	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE ]] && echo "$msg" >>$LG_FILE
+}
+
+function lg_file {
+
+	local msg="$*"
+
+	_lg_write_in_file "[FILE]" "$msg"
+}
+
 function lg_error {
 
 	local msg="$@"
 
-	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE ]] && echo "[ERROR] $msg" >>$LG_FILE
+	_lg_write_in_file "[ERROR]" "$msg"
 	[[ -n $LG_QUIET ]] || echo "[ERROR] $msg" >&2
 
 	exit 1
@@ -41,7 +57,7 @@ function lg_warning {
 
 	local msg="$@"
 
-	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE ]] && echo "[WARNING] $msg" >>$LG_FILE
+	_lg_write_in_file "[WARNING]" "$msg"
 	[[ -n $LG_QUIET ]] || echo "[WARNING] $msg" >&2
 }
 
@@ -50,8 +66,7 @@ function lg_debug {
 	local lvl=$1 ; shift
 	local msg="$@"
 
-	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE && $LG_DEBUG -ge $lvl ]] && \
-		echo "[DEBUG] $msg" >>$LG_FILE
+	[[ $LG_DEBUG -ge $lvl ]] && _lg_write_in_file "[DEBUG]" "$msg"
 	[[ -z $LG_QUIET && $LG_DEBUG -ge $lvl ]] && echo "[DEBUG] $msg" >&2
 }
 
@@ -59,6 +74,6 @@ function lg_info {
 
 	local msg="$@"
 
-	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE ]] && echo "[INFO] $msg" >>$LG_FILE
+	_lg_write_in_file "[INFO]" "$msg"
 	[[ -n $LG_QUIET ]] || echo "[INFO] $msg"
 }
