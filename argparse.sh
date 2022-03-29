@@ -330,6 +330,11 @@ function ap_add_log_file_size_opt {
 		"Set the maximum size of the log file."
 }
 
+function ap_add_lock_file_opt {
+	ap_add_opt_str "lock-file" OS_LOCK_FILE "$HOME/.$_AP_SCRIPT_NAME.lock" \
+		"Set the file to use for locking application."
+}
+
 function ap_add_dryrun_opt {
 	ap_add_opt_flag "dryrun,dry-run" OS_DRYRUN "Display what would be run,"\
 		"but do not execute anything."

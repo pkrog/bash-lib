@@ -13,7 +13,7 @@ fi
 LG_DEBUG=0
 LG_QUIET=
 LG_LOG_TO_FILE=
-LG_FILE=
+LG_FILE="$HOME/.$(basename $0).log"
 LG_FILE_MAX_SIZE=10000 # 10 KiB
 
 function lg_quit {
@@ -31,8 +31,10 @@ function _lg_write_in_file {
 
 	local msg="$*"
 
-	local sz=$(stat --printf="%s" "$LG_FILE")
-	[[ $sz -le $LG_FILE_MAX_SIZE ]] || rm $LG_FILE
+	if [[ -f $LG_FILE ]] ; then
+		local sz=$(stat --printf="%s" "$LG_FILE")
+		[[ $sz -le $LG_FILE_MAX_SIZE ]] || rm $LG_FILE
+	fi
 	[[ -n $LG_LOG_TO_FILE && -n $LG_FILE ]] && echo "$msg" >>$LG_FILE
 }
 

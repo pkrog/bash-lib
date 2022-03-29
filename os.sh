@@ -13,6 +13,7 @@ fi
 source "$(dirname $BASH_SOURCE)/logging.sh"
 
 OS_DRYRUN=
+OS_LOCK_FILE="$HOME/.$(basename $0).lock"
 
 function os_exec {
 	# Run a command
