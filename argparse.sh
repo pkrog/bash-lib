@@ -91,7 +91,8 @@ function _ap_define_name_and_aliases {
 		((++i))
 	done
 	IFS="$oldifs"
-	[[ -n $name ]] || lg_error "No name definition for option."
+	[[ -n $name ]] || lg_error "No name definition for option (received"\
+		"names=\"$names\")."
 }
 
 function _ap_define_var_opt {
@@ -105,6 +106,7 @@ function _ap_define_var_opt {
 	                 # For enum, the comma separated list of allowed values.
 	local name=${names%%,*}
 
+	lg_debug 1 "Defining option type=$type, var=$var, names=$names."
 	# Use env var
 	if [[ -n $_AP_USE_ENV_VAR ]] ; then
 		local envvar=$(_ap_get_env_var_name "$var")
@@ -164,7 +166,7 @@ function ap_add_opt_flag {
 	shift 2
 	local desc="$*"
 
-	_ap_define_var_opt "$names" "$var" flag "$desc" ""
+	_ap_define_var_opt "$names" "$var" flag "$desc" "" 1
 }
 
 function ap_add_opt_rflag {
@@ -175,7 +177,7 @@ function ap_add_opt_rflag {
 	shift 2
 	local desc="$*"
 
-	_ap_define_var_opt "$names" "$var" rflag "$desc" 1
+	_ap_define_var_opt "$names" "$var" rflag "$desc" 1 ""
 }
 
 function ap_add_opt_oflags {
@@ -191,15 +193,15 @@ function ap_add_opt_oflags {
 	[[ $name =~ , ]] && lg_error "In order to define opposite flags, you need"\
 		"to provide only one name. You provided \"$name\"."
 
-	_ap_define_var_opt "$name" "$var" flag "$desc $state" "$default"
-	_ap_define_var_opt "no-$name" "$var" rflag "$rdesc $state" "$default"
+	_ap_define_var_opt "$name" "$var" flag "$desc $state" "$default" 1
+	_ap_define_var_opt "no-$name" "$var" rflag "$rdesc $state" "$default" ""
 }
 
 function ap_add_opt_sflag {
-	# Define a string flag: a flag that sets a specific to string into a
+	# Define a string flag: a flag that sets a specific string into a
 	# variable
 
-	local name="$1"
+	local names="$1"
 	local var="$2"
 	local value="$3"
 	shift 3
@@ -225,6 +227,7 @@ function ap_add_opt_fct {
 	shift 2
 	local desc="$*"
 	local type=fct
+	lg_debug 1 "Defining option type=$type, fct=$fct, names=$names."
 
 	local name=${names%%,*}
 	_ap_define_name_and_aliases "$names"
@@ -449,84 +452,96 @@ function ap_add_pos_max {
 	_ap_add_pos $var "$desc" 0 str
 }
 
+function _ap_process_opt {
+
+	local nshift=0
+	local origopt="$1"
+
+	# Get option name
+	local opt=${origopt#--}
+	opt=${opt#-}
+	[[ -n ${_AP_OPTS[$opt]} || -n ${_AP_ALIAS_TO_NAME[$opt]} ]] || \
+		return $nshift
+	[[ -z ${_AP_ALIAS_TO_NAME[$opt]} ]] || opt=${_AP_ALIAS_TO_NAME[$opt]}
+
+	# Get option type
+	local var_type=${_AP_OPT_TYPE[$opt]}
+
+	# Function
+	if [[ $var_type == fct ]] ; then
+		nshift=1
+		${_AP_OPT_FCT[$opt]} # Call function
+
+	# Incrementing integer
+	elif [[ $var_type == inc ]] ; then
+		nshift=1
+		local var_name=${_AP_OPT_VAR[$opt]}
+		[[ -n $var_name ]] || declare -g "$var_name=0"
+		eval "((++$var_name))"
+
+	# Flag
+	elif [[ $var_type == flag || $var_type == rflag ]] ; then
+		nshift=1
+		declare -g "${_AP_OPT_VAR[$opt]}=${_AP_OPT_VALUE[$opt]}"
+
+	# Enumeration
+	elif [[ $var_type == enum ]] ; then
+		local v="$2"
+		nshift=2
+		[[ ",${_AP_OPT_VALUE[$opt]}," == *",$v,"* ]] || \
+			lg_error "Value \"$v\" is not allowed for option $opt."
+		local var_name=${_AP_OPT_VAR[$opt]}
+		declare -g "$var_name=$v"
+
+	# Integer
+	elif [[ $var_type == int ]] ; then
+		local v="$2"
+		nshift=2
+		[[ $v =~ ^-?[0-9]+$ ]] || lg_error "$origopt expects an"\
+			"integer value, not \"$v\"."
+		local var_name=${_AP_OPT_VAR[$opt]}
+		declare -g "$var_name=$v"
+
+	# String
+	elif [[ $var_type == str ]] ; then
+		local v="$2"
+		nshift=2
+		local var_name=${_AP_OPT_VAR[$opt]}
+		declare -g "$var_name=$v"
+
+	else
+		lg_error "Unknown type $var_type for argument $opt."
+
+	fi
+
+	return $nshift
+}
+
 function ap_read_args {
 
 	local args="$*" # save arguments for debugging purpose
 
 	# Read optional arguments
 	while true ; do
+		lg_debug 1 "Left options: $*"
 		case $1 in
-			-?|--*) origopt=$1
-				opt=${origopt#--}
-				opt=${opt#-}
-				[[ -n ${_AP_OPTS[$opt]} || -n ${_AP_ALIAS_TO_NAME[$opt]} ]] || \
-					lg_error "Unknown option $opt."
-				[[ -z ${_AP_ALIAS_TO_NAME[$opt]} ]] || \
-					opt=${_AP_ALIAS_TO_NAME[$opt]}
-				var_type=${_AP_OPT_TYPE[$opt]}
 
-				# Function
-				if [[ $var_type == fct ]] ; then
-					${_AP_OPT_FCT[$opt]} # Call function
-
-				# Incrementing integer
-				elif [[ $var_type == inc ]] ; then
-					var_name=${_AP_OPT_VAR[$opt]}
-					[[ -n $var_name ]] || declare -g "$var_name=0"
-					eval "((++$var_name))"
-
-				# Flag
-				elif [[ $var_type == flag ]] ; then
-					var_name=${_AP_OPT_VAR[$opt]}
-					declare -g "$var_name=1"
-
-				# Reverse flag
-				elif [[ $var_type == rflag ]] ; then
-					var_name=${_AP_OPT_VAR[$opt]}
-					declare -g "$var_name="
-
-				# Enumeration
-				elif [[ $var_type == enum ]] ; then
-					local v="$2"
-					shift
-					[[ ",${_AP_OPT_VALUE[$opt]}," == *",$v,"* ]] || \
-						lg_error "Value \"$v\" is not allowed for option $opt."
-					var_name=${_AP_OPT_VAR[$opt]}
-					declare -g "$var_name=$v"
-
-				# Integer
-				elif [[ $var_type == int ]] ; then
-					local v="$2"
-					shift
-					[[ $v =~ ^-?[0-9]+$ ]] || lg_error "$origopt expects an"\
-						"integer value, not \"$v\"."
-					var_name=${_AP_OPT_VAR[$opt]}
-					declare -g "$var_name=$v"
-
-				# String
-				elif [[ $var_type == str ]] ; then
-					local v="$2"
-					shift
-					var_name=${_AP_OPT_VAR[$opt]}
-					declare -g "$var_name=$v"
-
-				else
-					lg_error "Unknown type $var_type for argument $opt."
-
-				fi
-				;;
+			# Try to process this option
+			-?|--*) _ap_process_opt "$@"
+				local nshift=$? # Status is the number of shifts to apply
+				[[ $nshift -gt 0 ]] && shift $status && continue
+				;;& # Go on to next case
 
 			# Handled unknown option
-			-|--|--*|-?)  lg_error "Illegal option $1." ;;
+			-|--|--*|-?) lg_error "Illegal option $1." ;;
 
 			# Split short options joined together
-			-[^-]*)       split_opt=$(echo $1 | sed 's/^-//' | \
-				sed 's/\([a-zA-Z]\)/ -\1/g') ; set -- $1$split_opt "${@:2}" ;;
+			-[^-]*) split_opt=$(echo $1 | sed 's/^-//' | \
+				sed 's/\([a-zA-Z]\)/ -\1/g') ; set -- $1$split_opt "${@:2}" ; shift ;;
 
 			# Quit loop for reading remaining arguments as positional arguments
 			*) break
 		esac
-		shift
 	done
 
 	# TODO Set default values for optional arguments
