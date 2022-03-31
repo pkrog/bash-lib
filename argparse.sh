@@ -517,6 +517,27 @@ function _ap_process_opt {
 	return $nshift
 }
 
+function _ap_print_debug_msgs {
+
+	local args="$1"
+
+	lg_debug 1 "Arguments: $args"
+
+	# Print variables of optional arguments
+	local vars=$(tr " " "\n" <<< "${_AP_OPT_VAR[@]}" | sort | uniq)
+	for var in $vars ; do
+		lg_debug 1 "$var=${!var}"
+	done
+
+	# Print variables of  positional arguments
+	local vars=$(tr " " "\n" <<< "${_AP_POS_VAR[@]}" | sort | uniq)
+	for var in $vars ; do
+		eval "lg_debug 1 \"$var=\${$var[@]}\""
+	done
+
+	return 0
+}
+
 function ap_read_args {
 
 	local args="$*" # save arguments for debugging purpose
@@ -529,7 +550,7 @@ function ap_read_args {
 			# Try to process this option
 			-?|--*) _ap_process_opt "$@"
 				local nshift=$? # Status is the number of shifts to apply
-				[[ $nshift -gt 0 ]] && shift $status && continue
+				[[ $nshift -gt 0 ]] && shift $nshift && continue
 				;;& # Go on to next case
 
 			# Handled unknown option
@@ -543,9 +564,6 @@ function ap_read_args {
 			*) break
 		esac
 	done
-
-	# TODO Set default values for optional arguments
-	# URGENT
 
 	# Read positional arguments
 	for ((i = 0 ; i < ${#_AP_POS_VAR[@]} ; ++i)) ; do
@@ -576,12 +594,7 @@ function ap_read_args {
 	[[ -z "$*" ]] || lg_error "Forbidden remaining arguments: $*."
 
 	# Debug messages
-	lg_debug 1 "Arguments: $args"
-	local vars=$(tr " " "\n" <<< "${_AP_OPT_VAR[@]} ${_AP_POS_VAR[@]}" | sort \
-		| uniq)
-	for var in $vars ; do
-		lg_debug 1 "$var=${!var}"
-	done
+	_ap_print_debug_msgs "$args"
 
 	return 0
 }
