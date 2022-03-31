@@ -538,6 +538,36 @@ function _ap_print_debug_msgs {
 	return 0
 }
 
+function _ap_read_pos_args {
+
+	for ((i = 0 ; i < ${#_AP_POS_VAR[@]} ; ++i)) ; do
+
+		local var=${_AP_POS_VAR[$i]}
+		local nvals=${_AP_POS_NVALUES[$i]}
+		local type=${_AP_POS_TYPE[$i]}
+		local optional=${_AP_POS_OPTIONAL[$i]}
+
+		# Read one value
+		if [[ $nvals == 1 ]] ; then
+			declare -g "$var=$1"
+			[[ $optional -eq 1 || -n ${!var} ]] || \
+				lg_error "You must set a value for positional argument $var."
+			shift
+
+		# Read several values into an array
+		else
+			declare -ga $var
+			j=0
+			while [[ $1 != '' && ( $nvals == 0 || $j -lt $nvals ) ]] ; do
+				eval "$var+=(\"$1\")"
+				shift
+				((++j))
+			done
+		fi
+	done
+	[[ -z "$*" ]] || lg_error "Forbidden remaining arguments: $*."
+}
+
 function ap_read_args {
 
 	local args="$*" # save arguments for debugging purpose
@@ -566,32 +596,7 @@ function ap_read_args {
 	done
 
 	# Read positional arguments
-	for ((i = 0 ; i < ${#_AP_POS_VAR[@]} ; ++i)) ; do
-
-		local var=${_AP_POS_VAR[$i]}
-		local nvals=${_AP_POS_NVALUES[$i]}
-		local type=${_AP_POS_TYPE[$i]}
-		local optional=${_AP_POS_OPTIONAL[$i]}
-
-		# Read one value
-		if [[ $nvals == 1 ]] ; then
-			declare -g "$var=$1"
-			[[ $optional -eq 1 || -n ${!var} ]] || \
-				lg_error "You must set a value for positional argument $var."
-			shift
-
-		# Read several values into an array
-		else
-			declare -ga $var
-			j=0
-			while [[ $1 != '' && ( $nvals == 0 || $j -lt $nvals ) ]] ; do
-				eval "$var+=(\"$1\")"
-				shift
-				((++j))
-			done
-		fi
-	done
-	[[ -z "$*" ]] || lg_error "Forbidden remaining arguments: $*."
+	_ap_read_pos_args "$@"
 
 	# Debug messages
 	_ap_print_debug_msgs "$args"
