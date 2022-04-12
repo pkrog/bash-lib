@@ -10,6 +10,8 @@ if [[ -z $_BASH_LIB_EMBEDDED ]] ; then
 	_AP_SOURCED=1
 fi
 
+_AP_INDENT="  "
+
 source "$(dirname $BASH_SOURCE)/logging.sh"
 
 function ap_reset_args {
@@ -253,23 +255,56 @@ function _ap_print_opt_flags {
 	done
 }
 
-function _ap_print_options {
+function _ap_print_type {
+
+	local type="$1"
+
+	case $type in
+		str) echo -n " <string>" ;;
+		int) echo -n " <integer>" ;;
+		enum) echo -n " <choice>" ;;
+	esac
+}
+
+function _ap_print_arg_desc {
+
+	local desc="$1"
+
+	sed 's/  \+/ /g' <<<"$desc" | fold -s -w $((80-${#_AP_INDENT}*2)) | \
+		sed "s/^/$_AP_INDENT$_AP_INDENT/"
+}
+
+function _ap_print_pos_args {
+
+	[[ ${#_AP_POS_VAR[@]} -eq 0 ]] && return 0
+
+	echo
+	echo "Positional arguments:"
+	for ((i = 0 ; i < ${#_AP_POS_VAR[@]} ; ++i)) ; do
+
+		echo # Blank line
+		echo -n "$_AP_INDENT${_AP_POS_VAR[$i]}"
+		_ap_print_type "${_AP_POS_TYPE[$i]}"
+		echo
+
+		_ap_print_arg_desc "${_AP_POS_DESC[$i]}"
+	done
+}
+
+function _ap_print_opt_args {
 
 	[[ ${#_AP_OPTS[@]} -eq 0 ]] && return 0
 
 	echo
-	echo "Options:"
+	echo "Optional arguments:"
 	options=$(tr " " "\n" <<<${!_AP_OPTS[@]} | sort | tr "\n" " ")
 	for opt in $options ; do
 
 		echo # Blank line
-		echo -n "$indent" && _ap_print_opt_flags $opt
+		echo -n "$_AP_INDENT"
+		_ap_print_opt_flags $opt
 		type_var=${_AP_OPT_TYPE[$opt]}
-		case $type_var in
-			str) echo -n " <string>" ;;
-			int) echo -n " <integer>" ;;
-			enum) echo -n " <choice>" ;;
-		esac
+		_ap_print_type "$type_var"
 		echo
 
 		# Description
@@ -289,8 +324,7 @@ function _ap_print_options {
 		envvar="${_AP_OPT_ENV_VAR[$opt]}"
 		[[ -z $envvar ]] || \
 			desc+=" Can be set with environment variable $envvar."
-		sed 's/  \+/ /g' <<<"$desc" | fold -s -w $((80-${#indent}*2)) | \
-			sed "s/^/$indent$indent/"
+		_ap_print_arg_desc "$desc"
 	done
 }
 
@@ -325,8 +359,6 @@ function ap_print_version {
 
 function ap_print_help {
 
-	local indent="  "
-
 	# First line
 	echo -n "$_AP_SCRIPT_NAME"
 	[[ -z $_AP_SCRIPT_VERSION ]] || echo -n ", version $_AP_SCRIPT_VERSION"
@@ -342,8 +374,11 @@ function ap_print_help {
 	# Usage
 	_ap_print_usage
 
-	# Options
-	_ap_print_options
+	# Positional arguments
+	_ap_print_pos_args
+
+	# Optional arguments
+	_ap_print_opt_args
 
 	echo
 	exit 0
@@ -397,6 +432,7 @@ function _ap_add_pos {
 	local npos="$3"
 	local type="$4"
 	local optional="$5"
+	local values="$6"
 
 	# TODO Check characters in name
 	# TODO Check that npos >= 0
@@ -406,11 +442,12 @@ function _ap_add_pos {
 	[[ -z $optional ]] && optional=0
 
 	# Set positional info
-	_AP_POS_DESC+=($desc)
-	_AP_POS_VAR+=($name)
-	_AP_POS_NVALUES+=($npos)
-	_AP_POS_TYPE+=($type)
-	_AP_POS_OPTIONAL+=($optional)
+	_AP_POS_DESC+=("$desc")
+	_AP_POS_VAR+=("$name")
+	_AP_POS_NVALUES+=("$npos")
+	_AP_POS_TYPE+=("$type")
+	_AP_POS_OPTIONAL+=("$optional")
+	_AP_POS_VALUES+=("$values")
 
 	return 0
 }
@@ -421,7 +458,17 @@ function ap_add_pos_one {
 	shift
 	local desc="$*"
 
-	_ap_add_pos $var "$desc" 1 str
+	_ap_add_pos "$var" "$desc" 1 str
+}
+
+function ap_add_pos_one_enum {
+
+	local var="$1"
+	local values="$2"
+	shift 2
+	local desc="$*"
+
+	_ap_add_pos "$var" "$desc" 1 enum 0 "$values"
 }
 
 function ap_add_pos_one_optional {
@@ -450,6 +497,17 @@ function ap_add_pos_max {
 	local desc="$*"
 
 	_ap_add_pos $var "$desc" 0 str
+}
+
+function _ap_check_enum_value {
+
+	local v="$1"
+	local values="$2"
+
+	[[ ",$values," == *",$v,"* ]]
+	local status=$?
+
+	return $status
 }
 
 function _ap_process_opt {
@@ -488,7 +546,7 @@ function _ap_process_opt {
 	elif [[ $var_type == enum ]] ; then
 		local v="$2"
 		nshift=2
-		[[ ",${_AP_OPT_VALUE[$opt]}," == *",$v,"* ]] || \
+		_ap_check_enum_value "$v" "${_AP_OPT_VALUE[$opt]}" || \
 			lg_error "Value \"$v\" is not allowed for option $opt."
 		local var_name=${_AP_OPT_VAR[$opt]}
 		declare -g "$var_name=$v"
@@ -546,23 +604,38 @@ function _ap_read_pos_args {
 		local nvals=${_AP_POS_NVALUES[$i]}
 		local type=${_AP_POS_TYPE[$i]}
 		local optional=${_AP_POS_OPTIONAL[$i]}
+		local values=${_AP_POS_VALUES[$i]}
 
-		# Read one value
-		if [[ $nvals == 1 ]] ; then
-			declare -g "$var=$1"
-			[[ $optional -eq 1 || -n ${!var} ]] || \
-				lg_error "You must set a value for positional argument $var."
-			shift
+		# Read values
+		declare -ga $var
+		local j=0
+		while [[ $1 != '' && ( $nvals -eq 0 || $j -lt $nvals ) ]] ; do
 
-		# Read several values into an array
-		else
-			declare -ga $var
-			j=0
-			while [[ $1 != '' && ( $nvals == 0 || $j -lt $nvals ) ]] ; do
+			# Check enum value
+			[[ $type != enum ]] || _ap_check_enum_value "$1" "$values" || \
+				lg_error "Value \"$1\" is not allowed for positional argument"\
+				"$var."
+
+			# Set value
+			if [[ $nvals -eq 1 ]] ; then
+				declare -g "$var=$1"
+			else
 				eval "$var+=(\"$1\")"
-				shift
-				((++j))
-			done
+			fi
+
+			# Pass to next value
+			shift
+			((++j))
+		done
+
+		# Check number of read values
+		if [[ $optional -eq 0 && $nvals -gt 0 && $j -lt $nvals ]] ; then
+			if [[ $nvals -eq 1 ]] ; then
+				lg_error "You must set a value for positional argument $var."
+			else
+				lg_error "You must set $nvals values for positional argument"\
+					"$var."
+			fi
 		fi
 	done
 	[[ -z "$*" ]] || lg_error "Forbidden remaining arguments: $*."
