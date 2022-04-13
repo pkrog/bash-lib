@@ -499,13 +499,25 @@ function ap_add_pos_max {
 	_ap_add_pos $var "$desc" 0 str
 }
 
+function ap_add_pos_max_enum {
+
+	local var=$1
+	local values="$2"
+	shift 2
+	local desc="$*"
+
+	_ap_add_pos $var "$desc" 0 enum 0 "$values"
+}
+
 function _ap_check_enum_value {
 
 	local v="$1"
 	local values="$2"
 
+	lg_debug 1 "Check if \"$v\" is in \"$values\"."
 	[[ ",$values," == *",$v,"* ]]
 	local status=$?
+	lg_debug 1 "status=$status."
 
 	return $status
 }
@@ -609,12 +621,19 @@ function _ap_read_pos_args {
 		# Read values
 		declare -ga $var
 		local j=0
+		lg_debug 1 "var=$var"
+		lg_debug 1 "type=$type"
+		lg_debug 1 "nvals=$nvals"
 		while [[ $1 != '' && ( $nvals -eq 0 || $j -lt $nvals ) ]] ; do
 
+			lg_debug 1 "j=$j"
 			# Check enum value
-			[[ $type != enum ]] || _ap_check_enum_value "$1" "$values" || \
+			if [[ $type == enum ]] \
+				&& ! _ap_check_enum_value "$1" "$values" ; then
+				[[ $nvals == 0 ]] && break
 				lg_error "Value \"$1\" is not allowed for positional argument"\
 				"$var."
+			fi
 
 			# Set value
 			if [[ $nvals -eq 1 ]] ; then
