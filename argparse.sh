@@ -35,6 +35,10 @@ function ap_reset_args {
 	declare -gA _AP_OPT_TYPE=()
 	declare -gA _AP_OPT_DEFAULT=()
 	declare -gA _AP_OPT_VALUE=()
+	declare -gA _AP_OPT_NMIN=() # Minimum number of times to set the option.
+	declare -gA _AP_OPT_NMAX=() # Maximum number of times to set the option.
+	declare -gA _AP_OPT_NTIMES=() # Number of times the option has been
+	                              # actually defined.
 	declare -gA _AP_OPT_ENV_VAR=()
 }
 
@@ -106,7 +110,13 @@ function _ap_define_var_opt {
 	local default="$5"
 	local value="$6" # For flag type, value to set if flag is enabled.
 	                 # For enum, the comma separated list of allowed values.
+	local nmin="$7"  # Minimum of times to set the opt
+	local nmax="$8"  # Maximum of times to set the opt
 	local name=${names%%,*}
+
+	# Default value
+	[[ -z $nmin ]] && nmin=0
+	[[ -z $nmax ]] && nmax=1
 
 	lg_debug 1 "Defining option type=$type, var=$var, names=$names."
 	# Use env var
@@ -123,6 +133,9 @@ function _ap_define_var_opt {
 	_AP_OPT_TYPE+=("$name" "$type")
 	_AP_OPT_DEFAULT+=("$name" "$default")
 	_AP_OPT_VALUE+=("$name" "$value")
+	_AP_OPT_NMIN+=("$name" $nmin)
+	_AP_OPT_NMAX+=("$name" $nmax)
+	_AP_OPT_NTIMES+=("$name" 0)
 }
 
 function ap_add_opt_int {
@@ -158,6 +171,16 @@ function ap_add_opt_str {
 	local desc="$*"
 
 	_ap_define_var_opt "$names" "$var" str "$desc" "$default"
+}
+
+function ap_add_opt_str_mult {
+
+	local names="$1"
+	local var="$2"
+	shift 2
+	local desc="$*"
+
+	_ap_define_var_opt "$names" "$var" str "$desc" "$default" "" 0 0
 }
 
 function ap_add_opt_flag {
@@ -238,20 +261,25 @@ function ap_add_opt_fct {
 	_AP_OPT_TYPE+=("$name" "$type")
 }
 
+function _ap_get_full_opt_flag {
+
+	local opt="$1"
+
+	echo -n "-"
+	[[ ${#opt} -gt 1 ]] && echo -n "-"
+	echo -n $opt
+}
+
 function _ap_print_opt_flags {
 
 	local opt="$1"
 
 	# Write main flag
-	echo -n "-"
-	[[ ${#opt} -gt 1 ]] && echo -n "-"
-	echo -n $opt
+	echo $(_ap_get_full_opt_flag "$opt")
 
 	# Write aliases
 	for als in ${_AP_OPT_ALIASES[$opt]} ; do
-		echo -n ", -"
-		[[ ${#als} -gt 1 ]] && echo -n "-"
-		echo -n $als
+		echo -n ", "$(_ap_get_full_opt_flag "$als")
 	done
 }
 
@@ -576,11 +604,35 @@ function _ap_process_opt {
 	elif [[ $var_type == str ]] ; then
 		local v="$2"
 		nshift=2
-		local var_name=${_AP_OPT_VAR[$opt]}
-		declare -g "$var_name=$v"
 
+		# Get var name
+		local var_name=${_AP_OPT_VAR[$opt]}
+
+		# Define variable
+		if [[ ${_AP_OPT_NTIMES[$opt]} -eq 0 ]] ; then
+			if [[ ${_AP_OPT_NMAX[$opt]} -eq 1 ]] ; then
+				declare -g "$var_name="
+			else
+				declare -ga "$var_name=()"
+			fi
+		fi
+
+		# Set value
+		if [[ ${_AP_OPT_NMAX[$opt]} -eq 1 ]] ; then
+			eval "$var_name=$v"
+		else
+			eval "$var_name+=(\"$v\")"
+		fi
+
+		# Increment counter
+		eval "_AP_OPT_NTIMES+=(\"$opt\" \$((${_AP_OPT_NTIMES[$opt]} + 1)))"
+
+		[[ ${_AP_OPT_NMAX[$opt]} -eq 0 || \
+			${_AP_OPT_NTIMES[$opt]} -le ${_AP_OPT_NMAX[$opt]} ]] || \
+			lg_error "You have used too many times the option '$opt'."
 	else
-		lg_error "Unknown type $var_type for argument $opt."
+		lg_error "Unknown type $var_type for argument "\
+			$(_ap_get_full_opt_flag "$opt")"."
 
 	fi
 
@@ -619,7 +671,11 @@ function _ap_read_pos_args {
 		local values=${_AP_POS_VALUES[$i]}
 
 		# Read values
-		declare -ga $var
+		if [[ $nvals -eq 1 ]] ; then
+			declare -g "$var="
+		else
+			declare -ga "$var=()"
+		fi
 		local j=0
 		lg_debug 1 "var=$var"
 		lg_debug 1 "type=$type"
@@ -637,7 +693,7 @@ function _ap_read_pos_args {
 
 			# Set value
 			if [[ $nvals -eq 1 ]] ; then
-				declare -g "$var=$1"
+				eval "$var=$1"
 			else
 				eval "$var+=(\"$1\")"
 			fi
