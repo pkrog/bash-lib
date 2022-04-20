@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 SCRIPT_FILE=$(basename $0)
 SCRIPT_DIR=$(dirname $0)
@@ -19,6 +19,8 @@ function read_args {
 	ap_add_pos_one OUTPUT_FILE "The file in which to write the resulting"\
 		"script."
 	ap_read_args "$@"
+
+	return 0
 }
 
 function embed_lib {
@@ -43,6 +45,8 @@ function embed_lib {
 	else
 		echo "awk \"$awkcode\" $infile >$outfile"
 	fi
+
+	return 0
 }
 
 function remove_lib {
@@ -58,6 +62,8 @@ function remove_lib {
 	else
 		echo "awk \"$awkcode\" $infile >$outfile"
 	fi
+
+	return 0
 }
 
 function main {
@@ -100,6 +106,7 @@ function main {
 
 	cp "$file" "$OUTPUT_FILE"
 
+	return 0
 }
 
 main "$@"
