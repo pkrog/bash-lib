@@ -129,11 +129,13 @@ Some assertions take a custom message to be displayed in case of failure.
 ### Success/failure assertions
 
 `tt_expect_success` tests the success of a command.
+
 | -------- | ----------- |
 | Argument | Description |
 | -------- | ----------- |
 |     *    | Command.    |
 | -------- | ----------- |
+
 Example:
 ```sh
 tt_expect_success my_command || return 1
