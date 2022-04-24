@@ -153,75 +153,123 @@ tt_expect_success_in_n_tries 3 my_command || return 1
 tt_expect_success_in_n_tries 3 my_command arg1 || return 1
 ```
 
-   tt_expect_failure   Test the failure of a command.
-                    Arguments: command.
-                    Example:
-                       tt_expect_failure my_command || return 1
-                       tt_expect_failure my_command arg1 arg2 || return 1
+`tt_expect_failure` tests the failure of a command.
 
-   tt_expect_status    Test that a command fails and return a precise status value.
-                    Arg. 1: Expected status number.
-                    Remaining arguments: command.
-                    Example:
-                       tt_expect_status 0 my_command || return 1
-                       tt_expect_status 4 my_command || return 1
-                       tt_expect_status 4 my_command arg1 arg2 || return 1
+| Argument | Description |
+|  :---:   | :---        |
+|     *    | Command.    |
 
-   tt_expect_exit      Test the failure of a command by running the command inside
-                    a subshell. Thus you can test a call to a function that
-                    call the \`exit\` command.
-                    Arguments: command.
-                    Example:
-                       tt_expect_exit my_command || return 1
-                       tt_expect_exit my_command arg1 arg2 || return 1
+Example:
+```sh
+tt_expect_failure my_command || return 1
+tt_expect_failure my_command arg1 arg2 || return 1
+```
 
-   tt_expect_exit_status
-                    Test that a command fails and return a precise status value
-                    by running the command inside a subshell. Thus you can test
-                    a call to a function that call the \`exit\` command.
-                    Arg. 1: Expected status number.
-                    Remaining arguments: command.
-                    Example:
-                       tt_expect_exit_status 2 my_command || return 1
-                       tt_expect_exit_status 0 my_command arg1 arg2 || return 1
+`tt_expect_status` tests that a command fails and return a precise status value.
 
-Output assertions:
+| Argument | Description |
+|  :---:   | :---        |
+|     1    | Expected status number. |
+|     *    | Command.    |
 
-   tt_expect_empty_output
-                    Test if a command output nothing on stdout.
-                    Arguments: command.
-                    Example:
-                       tt_expect_empty_output my_command arg1 arg2 || return 1
+Example:
+```sh
+tt_expect_status 0 my_command || return 1
+tt_expect_status 4 my_command || return 1
+tt_expect_status 4 my_command arg1 arg2 || return 1
+```
 
-   tt_expect_non_empty_output
-                    Test if a command output something on stdout.
-                    Arguments: command.
-                    Example:
-                       tt_expect_non_empty_output my_command arg1 arg2 || return 1
+`tt_expect_exit` tests the failure of a command by running the command inside
+a subshell. Thus you can test a call to a function that call the `exit`
+command.
 
-   tt_expect_output_eq Test if the output of a command is equals to a value. The
-                    output is stripped from carriage returns before comparison.
-                    Arg. 1: Expected output as a string.
-                    Remaining arguments: command.
-                    Example:
-                       tt_expect_output_eq "Expected Output" my_command arg1 arg2 || return 1
+| Argument | Description |
+|  :---:   | :---        |
+|     *    | Command.    |
 
-   tt_expect_output_ne Test if the output of a command is equals to a value. The
-                    output is stripped from carriage returns before comparison.
-                    Arg. 1: Expected output as a string.
-                    Remaining arguments: command.
-                    Example:
-                       tt_expect_output_ne "Expected Output" my_command arg1 arg2 || return 1
+Example:
+```sh
+tt_expect_exit my_command || return 1
+tt_expect_exit my_command arg1 arg2 || return 1
+```
 
-   tt_expect_output_esc_eq
-                    Test if the output of a command is equals to a value.
-                    Carriage returns are preserved.
-                    Arg. 1: Expected output as a string for echo command with
-                            trailing newline disabled and backslash escapes
-                            enabled.
-                    Remaining arguments: command.
-                    Example:
-                       tt_expect_output_esc_eq "Expected Output" my_command arg1 arg2 || return 1
+`tt_expect_exit_status` tests that a command fails and return a precise status
+value by running the command inside a subshell. Thus you can test a call to a
+function that call the `exit` command.
+
+| Argument | Description |
+|  :---:   | :---        |
+|     1    | Expected status number. |
+|     *    | Command.    |
+
+Example:
+```sh
+tt_expect_exit_status 2 my_command || return 1
+tt_expect_exit_status 0 my_command arg1 arg2 || return 1
+```
+
+#### Output assertions
+
+`tt_expect_empty_output` tests if a command output nothing on stdout.
+
+| Argument | Description |
+|  :---:   | :---        |
+|     *    | Command.    |
+
+Example:
+```sh
+tt_expect_empty_output my_command arg1 arg2 || return 1
+```
+
+`tt_expect_non_empty_output` tests if a command output something on stdout.
+
+| Argument | Description |
+|  :---:   | :---        |
+|     *    | Command.    |
+
+Example:
+```sh
+tt_expect_non_empty_output my_command arg1 arg2 || return 1
+```
+
+`tt_expect_output_eq` tests if the output of a command is equals to a value.
+The output is stripped from carriage returns before comparison.
+
+| Argument | Description |
+|  :---:   | :---        |
+|     1    | Expected output as a string.    |
+|     *    | Command.    |
+
+Example:
+```sh
+tt_expect_output_eq "Expected Output" my_command arg1 arg2 || return 1
+```
+
+`tt_expect_output_ne` tests if the output of a command is equals to a value.
+The output is stripped from carriage returns before comparison.
+
+| Argument | Description |
+|  :---:   | :---        |
+|     1    | Expected output as a string.    |
+|     *    | Command.    |
+
+Example:
+```sh
+tt_expect_output_ne "Expected Output" my_command arg1 arg2 || return 1
+```
+
+`tt_expect_output_esc_eq` tests if the output of a command is equals to a
+value.  Carriage returns are preserved.
+
+| Argument | Description |
+|  :---:   | :---        |
+|     1    | Expected output as a string for echo command with trailing newline disabled and backslash escapes enabled. |
+|     *    | Command.    |
+                           
+Example:
+```sh
+tt_expect_output_esc_eq "Expected Output" my_command arg1 arg2 || return 1
+```
 
    tt_expect_output_esc_ne
                     Test if the output of a command is different from a value.
@@ -255,7 +303,7 @@ Output assertions:
                     Example:
                        tt_expect_output_re "A.*B" my_command arg1 arg2 || return 1
 
-String assertions:
+#### String assertions
 
    tt_expect_str_null  Test if a string is empty.
                     Arg. 1: String.
@@ -330,7 +378,7 @@ Numeric assertions:
                        tt_expect_num_gt $$n 5 || return 1
                        tt_expect_num_gt $$n 5 "My Msg" || return 1
 
-Environment assertions:
+#### Environment assertions
 
    tt_expect_def_env_var
                     Test if an environment variable is defined and not empty.
@@ -340,7 +388,7 @@ Environment assertions:
                        tt_expect_def_env_var MY_VAR || return 1
                        tt_expect_def_env_var MY_VAR "My Msg" || return 1
 
-File system assertions:
+#### File system assertions
 
    tt_expect_file      Test if file exists.
                     Arg. 1: File.
@@ -444,7 +492,7 @@ File system assertions:
                     Example:
                        tt_expect_folder_is_writable "myFolder" "My Msg" || return 1
 
-File assertions:
+#### File assertions
 
    tt_expect_same_files
                     Test if two files are identical.
@@ -480,7 +528,7 @@ File assertions:
                     Example:
                        tt_expect_same_number_of_rows "myFile1" "myFile2" || return 1
 
-CSV assertions:
+#### CSV assertions
 
    tt_expect_csv_has_columns
                     Test if a CSV file contains a set of columns. Second
@@ -534,6 +582,8 @@ CSV assertions:
                        tt_expect_csv_same_col_names "myFile1" "myFile2" ";" 8 || return 1
                        tt_expect_csv_same_col_names "myFile1" "myFile2" ";" 8 1 || return 1
 
-GLOSSARY
+## Glossary
 
-   ERE      Extended Regular Expression.
+| Term  | Description |
+| :---: | :---        |
+| ERE   |  Extended Regular Expression. |
