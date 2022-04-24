@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+SCRIPT_FILE=$(basename $0)
+SCRIPT_DIR=$(dirname $0)
+source "$SCRIPT_DIR/argparse.sh"
+source "$SCRIPT_DIR/testthat.sh"
+VERSION=1.4.0
+
+function read_args {
+
+	ap_use_env_var
+	ap_set_short_description "A bash script for running tests on command line"\
+		"scripts."
+	ap_add_debug_opt
+	ap_add_help_opt
+	ap_add_version_opt
+	ap_add_opt_flag "q,quit-first" QUIT_ON_FIRST_ERROR \
+		"Quit on first error, and stop all tests."\
+		"Useful with $TT_REPORT_ON_THE_SPOT report (see -r option)."
+		ap_add_opt_str "r,report" REPORT "$(tt_get_reporter)"\
+			"Set the name of the"\
+		"reporter to use. Possible values are: $TT_REPORT_ON_THE_SPOT (report"\
+		"each error as it occurs), $TT_REPORT_AT_THE_END (report at the end of"\
+		"all tests)."
+	ap_add_opt_str "i,include-fcts" INC_FCTS "" \
+		"Set a selection of test functions to run. Only those test"\
+		"functions will be run, if they exist. The value is a"\
+		"comma separated list of functions names."
+	ap_add_opt_str "e,exclude-fcts" EXC_FCTS "" \
+		"Set a selection of test functions to exclude. Those test"\
+		"functions will never be run. The value is a"\
+		"comma separated list of functions names."
+	ap_add_opt_str "j,include-files" INC_FILES "" \
+		"Set a selection of test files to run. Only those test"\
+		"files will be run, if they exist. The value is a"\
+		"comma separated list of files names."
+	ap_add_opt_str "f,file-pattern" FILE_PATTERN \
+		"$(tt_get_default_file_pattern)" \
+		"Redefine the default regular expression for filtering test files in"\
+		"folders."
+	ap_add_opt_str "x,fct-prefix" FCT_PREFIX "$(tt_get_default_fct_prefix)"\
+		"A regular expression use to identify test functions to run"\
+		"automatically."\
+		"The expression reprensents the prefix function names must match."\
+		"Only used when --autorun flag is enabled (default)."
+	ap_add_opt_oflags "autorun" AUTORUN 1 \
+		"Run automatically the the found test functions."\
+		"Do run automatically the test functions matching the function prefix."
+	ap_add_opt_flag "p,print" PRINT "Print live output of test functions."
+	ap_add_pos_max TOTEST "A list of teste files or folders. The files will"\
+		"be sourced and if --autorun is enabled (default) all functions"\
+		"matching the function prefix (-x) will be executed."\
+		"Folders will be searched for files matching the file pattern (-f) and"\
+		"sourced."
+	ap_read_args "$@"
+
+	return 0
+}
+
+function main {
+
+	# Read arguments
+	read_args "$@"
+
+	# Set options
+	tt_set_reporter "$REPORT"
+	[[ -z $PRINT ]] || tt_enable_live_printing
+	[[ -z $QUIT_ON_FIRST_ERROR ]] || tt_enable_quit_on_first_error
+
+	# Run
+	tt_run_tests "$FILE_PATTERN" "$INC_FILES" "$AUTORUN" "$FCT_PREFIX" \
+		"$INC_FCTS" "$EXC_FCTS" "${TOTEST[@]}"
+
+	# Finalize
+	tt_finalize_tests || return 1
+
+	return 0
+}
+
+main "$@" || exit 1
+exit 0

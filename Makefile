@@ -1,6 +1,7 @@
 all:
 
 test:
-	bash-testthat/testthat.sh tests
+	./testthat tests
 
 clean:
+	$(RM) -r tests/output

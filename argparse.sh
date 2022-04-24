@@ -275,7 +275,8 @@ function _ap_print_opt_flags {
 	local opt="$1"
 
 	# Write main flag
-	echo $(_ap_get_full_opt_flag "$opt")
+	# Use printf to avoid interpretation of '-e' flag or other flags by `echo`.
+	printf '%s' $(_ap_get_full_opt_flag "$opt")
 
 	# Write aliases
 	for als in ${_AP_OPT_ALIASES[$opt]} ; do
