@@ -19,14 +19,38 @@ TT_REPORT_ON_THE_SPOT=on.the.spot
 TT_REPORT_AT_THE_END=at.the.end
 _TT_REPORTER=$TT_REPORT_AT_THE_END
 _TT_DEFAULT_FILE_PATTERN='[Tt][Ee][Ss][Tt][-._].*\.sh'
+_TT_DEFAULT_FCT_PREFIX='[Tt][Ee][Ss][Tt]_\?'
+_TT_LIVE_PRINTING=
+_TT_QUIT_ON_FIRST_ERROR=
+_TT_ERR_NUMBER=0
+
+declare -a _TT_ERR_MSGS=()
+declare -a _TT_ERR_STDERR_FILES=()
+declare -a _TT_FCTS_RUN_IN_TEST_FILE=()
+declare -a _TT_CONTEXTS=()
 
 function tt_get_default_file_pattern {
 	echo "$_TT_DEFAULT_FILE_PATTERN"
 	return 0
 }
 
+function tt_get_default_fct_prefix {
+	echo "$_TT_DEFAULT_FCT_PREFIX"
+	return 0
+}
+
 function tt_get_reporter {
 	echo "$_TT_REPORTER"
+	return 0
+}
+
+function tt_enable_live_printing {
+	_TT_LIVE_PRINTING=1
+	return 0
+}
+
+function tt_enable_quit_on_first_error {
+	_TT_QUIT_ON_FIRST_ERROR=1
 	return 0
 }
 
@@ -48,11 +72,19 @@ function tt_context {
 
 	local msg=$1
 
-	[[ $NB_TEST_CONTEXT -gt 0 ]] && echo
+	# Is this a new context?
+	[[ ${_TT_CONTEXTS[@]} == $msg ]] && return 0
 
+	# Print new line if this is not first context
+	[[ ${#_TT_CONTEXTS[@]} -gt 0 ]] && echo
+
+	# Print context
 	echo -n "$msg "
 
-	((NB_TEST_CONTEXT=NB_TEST_CONTEXT+1))
+	# Store context
+	_TT_CONTEXTS+=("$msg")
+
+	return 0
 }
 
 function _tt_print_error {
@@ -70,73 +102,92 @@ function _tt_print_error {
 		rm "$output_file"
 	fi
 	echo '----------------------------------------------------------------'
+
+	return 0
 }
 
 tt_finalize_tests() {
 
 	# Print new line
-	[[ $NB_TEST_CONTEXT -eq 0 ]] || echo
+	[[ ${#_TT_CONTEXTS[@]} -eq 0 ]] || echo
 
 	# Print end report
-	[[ $REPORT == $AT_THE_END ]] && _tt_print_end_report
+	[[ $_TT_REPORTER == $TT_REPORT_AT_THE_END ]] && _tt_print_end_report
 
 	# Exit
-	exit $ERR_NUMBER
+	return $_TT_ERR_NUMBER
+}
+
+function _tt_fct_is_allowed {
+
+	local fct="$1" # Function
+	local inc_fcts="$2" # Functions to include
+	local exc_fcts="$3" # Functions to exclude
+
+	[[ -n $inc_fcts && ",$inc_fcts," != *",$test_fct,"* ]] && return 1
+	[[ -n $exc_fcts && ",$exc_fcts," == *",$test_fct,"* ]] && return 1
+
+	return 0
 }
 
 function tt_test_that {
 
 	local msg="$1"
 	local test_fct="$2"
-	shift 2
+	local inc_fcts="$3" # Functions to include
+	local exc_fcts="$4" # Functions to exclude
+	shift 4
 	local params="$*"
 	local tmp_stderr_file=$(mktemp -t testthat-stderr.XXXXXX)
 
+	# Set default values
+	[[ -n $msg ]] || msg="Tests pass in function $test_fct"
+
 	# Filtering
-	if [[ -n $TEST_THAT_FCT && ",$TEST_THAT_FCT," != *",$test_fct,"* ]] ; then
-		return 0
-	fi
-	if [[ -n $TEST_THAT_NO_FCT && ",$TEST_THAT_NO_FCT," == *",$test_fct,"* ]] ; then
-		return 0
-	fi
+	_tt_fct_is_allowed "$test_fct" "$inc_fcts" "$exc_fcts" || return 0
+
+	# Checking
+	local fct_type=$(type -t "$test_fct")
+	[[ $fct_type == function || $fct_type == file ]] || lg_error \
+		"\"$test_fct\" is neither a function nor an external command."
 
 	# Run test
-	g_fcts_run_in_test_file+=("$test_fct")
+	_TT_FCTS_RUN_IN_TEST_FILE+=("$test_fct")
+	lg_debug 1 "Running test function \"$test_fct\" and redirecting error"\
+		"messages to \"$tmp_stderr_file\"."
 	( $test_fct $params 2>"$tmp_stderr_file" ) # Run in a subshell to catch exit
 	                                           # interruptions.
 	exit_code=$?
-
-	# Set message
-	[[ -n $msg ]] || msg="Tests pass in function $test_fct"
+	lg_debug 1 "Exit code of \"$test_fct\" was $exit_code."
 
 	# Print stderr now
-	[[ $PRINT == $YES && -f $tmp_stderr_file ]] && cat $tmp_stderr_file
+	[[ -n $_TT_LIVE_PRINTING && -f $tmp_stderr_file ]] && cat $tmp_stderr_file
 
 	# Failure
 	if [ $exit_code -gt 0 ] ; then
 
 		# Increment error number
-		((++ERR_NUMBER))
+		((++_TT_ERR_NUMBER))
 
 		# Print error number
-		if [[ ERR_NUMBER -lt 16 ]] ; then
-			printf %x $ERR_NUMBER
+		if [[ _TT_ERR_NUMBER -lt 16 ]] ; then
+			printf %x $_TT_ERR_NUMBER
 		else
 			echo -n E
 		fi
 
 		# Print error now
-		if [[ $REPORT == $ON_THE_SPOT ]] ; then
-			_tt_print_error $ERR_NUMBER "$msg" "$tmp_stderr_file"
+		if [[ $_TT_REPORTER == $TT_REPORT_ON_THE_SPOT ]] ; then
+			_tt_print_error $_TT_ERR_NUMBER "$msg" "$tmp_stderr_file"
 
 		# Store error message for later
 		else
-			g_err_msgs+=("$msg")
-			g_err_stderr_files+=("$tmp_stderr_file")
+			_TT_ERR_MSGS+=("$msg")
+			_TT_ERR_STDERR_FILES+=("$tmp_stderr_file")
 		fi
 
 		# Quit on first error
-		[[ $QUIT_ON_FIRST_ERROR == $YES ]] && tt_finalize_tests
+		[[ -z $_TT_QUIT_ON_FIRST_ERROR ]] || tt_finalize_tests || exit $?
 
 	# Success
 	else
@@ -149,36 +200,44 @@ function tt_run_test_file {
 	local file="$1"
 	local autorun="$2"
 	local prefix="$3"
-	local fcts="$4"
+	local inc_fcts="$4"
+	local exc_fcts="$5"
 
-	g_fcts_run_in_test_file=()
+	# Set default values
+	[[ -n $autorun ]] || autorun=1
+	[[ -n $prefix ]] || prefix="$_tt_default_fct_prefix"
+
+	lg_debug 1 "Running tests in file \"$file\"."
+
+	_TT_FCTS_RUN_IN_TEST_FILE=()
 	source "$file"
 
 	# Run all test_.* functions not run explicitly by test_that
-	if [[ $AUTORUN == $YES ]] ; then
-		for fct in $(grep '^ *\(function \+'$FCT_PREFIX'[^ ]\+\|'$FCT_PREFIX'[^ ]\+()\) *{' "$file" | sed 's/^ *\(function \+\)\?\('$FCT_PREFIX'[^ {(]\+\).*$/\2/') ; do
+	if [[ -n $autorun ]] ; then
+		for fct in $(grep '^ *\(function \+'$prefix'[^ ]\+\|'$prefix'[^ ]\+()\) *{' "$file" | sed 's/^ *\(function \+\)\?\('$prefix'[^ {(]\+\).*$/\2/') ; do
 
 			# Ignore some reserved names
 			[[ $fct == tt_test_context || $fct == tt_test_that ]] && continue
 
-			# Filtering
-			[[ -z $INCLUDE_FCTS || ",$INCLUDE_FCTS," == *",$fct,"* ]] || continue
-
 			# Run function
-			[[ " ${g_fcts_run_in_test_file[*]} " == *" $fct "* ]] || tt_test_that "" $fct
+			[[ " ${_TT_FCTS_RUN_IN_TEST_FILE[*]} " == *" $fct "* ]] || \
+				tt_test_that "" "$fct" "$inc_fcts" "$exc_fcts"
 		done
 	fi
+
+	return 0
 }
 
 function _tt_print_end_report {
 
-	if [[ $ERR_NUMBER -gt 0 ]] ; then
+	if [[ $_TT_ERR_NUMBER -gt 0 ]] ; then
 		echo '================================================================'
-		echo "$ERR_NUMBER error(s) encountered."
+		echo "$_TT_ERR_NUMBER error(s) encountered."
 
 		# Loop on all errors
-		for ((i = 0 ; i < ERR_NUMBER ; ++i)) ; do
-			_tt_print_error $((i+1)) "${g_err_msgs[$i]}" "${g_err_stderr_files[$i]}"
+		for ((i = 0 ; i < _TT_ERR_NUMBER ; ++i)) ; do
+			_tt_print_error $((i+1)) "${_TT_ERR_MSGS[$i]}" \
+				"${_TT_ERR_STDERR_FILES[$i]}"
 		done
 	fi
 }
@@ -302,14 +361,14 @@ function tt_expect_non_empty_output {
 	( "$@" >"$tmpfile" )
 	local status=$?
 
-	[[ -s "$tmpfile" ]] || empty=$YES
+	[[ -s "$tmpfile" ]] || empty=1
 	unlink "$tmpfile"
 
 	if [[ $status -ne 0 ]] ; then
 		rt_print_call_stack >&2
 		echo "Command \"$cmd\" failed with status $status." >&2
 		return 1
-	elif [[ $empty == $YES ]] ; then
+	elif [[ -n $empty ]] ; then
 		rt_print_call_stack >&2
 		echo "Output of \"$cmd\" is empty." >&2
 		return 2
@@ -1011,11 +1070,20 @@ function tt_run_tests {
 
 	local pattern="$1"
 	local inc_files="$2"
-	shift 2
+	local autorun="$3"
+	local fct_prefix="$4"
+	local inc_fcts="$5"
+	local exc_fcts="$6"
+	shift 6
 	# Files and folders: $*
 
-	# Set default value
+	# Set default values
 	[[ -n $pattern ]] || pattern="$_TT_DEFAULT_FILE_PATTERN"
+	[[ -n $autorun ]] || autorun=1
+	[[ -n $prefix ]] || prefix="$_tt_default_fct_prefix"
+
+	lg_debug 1 "Running tests of following files and folders: $*."
+	lg_debug 1 "File pattern: $pattern"
 
 	# Loop on folders and files to test
 	for e in "$@" ; do
@@ -1024,24 +1092,32 @@ function tt_run_tests {
 			lg_error "\"$e\" is neither a file nor a folder."
 
 		# File
-		[[ -f $e ]] && tt_run_test_file "$e"
+		[[ -f $e ]] && tt_run_test_file "$e" "$autorun" "$fct_prefix" \
+			"$inc_fcts" "$exc_fcts"
 
 		# Folder
 		if [[ -d $e ]] ; then
+			lg_debug 1 "Looking for test files in folder \"$e\"."
 			local tmp_file=$(mktemp -t $PROGNAME.XXXXXX)
-			ls $e/* | sort >$tmp_file
+			ls -d1 $e/* | sort >$tmp_file
 			while read f ; do
 
+				lg_debug 1 "Check if file "$f" is a test file."
+
 				# Check file pattern
-				[[ -f $f && $f =~ ^[^/]*/$pattern$ ]] || continue
+				local filename=$(basename "$f")
+				[[ -f $f && $filename =~ ^$pattern$ ]] || continue
 
 				# Filter
-				local filename=$(basename "$f")
+				lg_debug 1 "Filtering filename \"$filename\" on list of files"\
+					"to include \"$inc_files\"."
 				[[ -z $inc_files || ",$inc_files," == *",$filename,"* ]] \
 					|| continue
 
 				# Run tests in file
-				tt_run_test_file "$f"
+				lg_debug 1 "Run test file \"$f\"."
+				tt_run_test_file "$f" "$autorun" "$fct_prefix" "$inc_fcts" \
+					"$exc_fcts"
 			done <$tmp_file
 		fi
 

@@ -6,109 +6,55 @@ source "$SCRIPT_DIR/argparse.sh"
 source "$SCRIPT_DIR/testthat.sh"
 VERSION=1.4.0
 
-TOTEST=
-NB_TEST_CONTEXT=0
-ERR_NUMBER=0
-PRINT=
-FILE_PATTERN='[Tt][Ee][Ss][Tt][-._].*\.sh'
-FCT_PREFIX='[Tt][Ee][Ss][Tt]_\?'
-AUTORUN=$YES
-REPORT=$AT_THE_END
-QUIT_ON_FIRST_ERROR=
-INCLUDE_FCTS=${TESTTHAT_INCLUDE_FCTS:-}
-INCLUDE_FILES=${TESTTHAT_INCLUDE_FILES:-}
-declare -a g_err_msgs=()
-declare -a g_err_stderr_files=()
-declare -a g_fcts_run_in_test_file=()
-
-function print_help {
-	cat <<END_HELP
-A bash script for running tests on command line scripts.
-
-Usage: $PROGNAME [options] <folders or files>
-
-The folders are searched for files matching 'test-*.sh' pattern.
-You can use the environment variables TEST_THAT_FCT and TEST_THAT_NO_FCT to restrict the test functions that are run. Just set this variable to the list of functions you want to run or not run (separated by commas).
-
-OPTIONS:
-
-       --no-autorun    Do not detect and run automatically the test functions.
-                       This means you will have to call explicitly the
-                       tt_test_that function.
-
-   -i, --include-fcts <fct1,fct2,...>
-                       Set a selection of test functions to run. Only those test
-                       functions will be run, if they exist. The value is a
-                       comma separated list of functions names. Can be set also
-                       through TESTTHAT_INCLUDE_FCTS environment variable.
-
-   --j, --include-files <file1, file2, ...>
-                       Set a selection of test files to run. Only those test
-                       files will be run, if they exist. The value is a
-                       comma separated list of files names. Can be set also
-                       through TESTTHAT_INCLUDE_FILES environment variable.
-
-   -p, --print         Print live output of test functions.
-
-   -q, --quit-first    Quit on first error, and stop all tests.
-                       Useful with $ON_THE_SPOT report (see -r option).
-
-   -r, --report <NAME> Set the name of the reporter to use. Possible
-                       values are: $ON_THE_SPOT (report each error as it
-                       occurs), $AT_THE_END (report at the end of all
-                       tests).
-                       Default is $AT_THE_END.
-
-   -v, --version       Print version.
-
-   -x, --fct-prefix    Set the prefix to use when auto-detecting test
-                       functions. Default is "$FCT_PREFIX".
-END_HELP
-}
-
 function read_args {
 
-	local args="$*" # save arguments for debugging purpose
+	ap_use_env_var
+	ap_set_short_description "A bash script for running tests on command line"\
+		"scripts."
 	ap_add_debug_opt
 	ap_add_help_opt
 	ap_add_version_opt
+	ap_add_opt_flag "q,quit-first" QUIT_ON_FIRST_ERROR \
+		"Quit on first error, and stop all tests."\
+		"Useful with $TT_REPORT_ON_THE_SPOT report (see -r option)."
+		ap_add_opt_str "r,report" REPORT "$(tt_get_reporter)"\
+			"Set the name of the"\
+		"reporter to use. Possible values are: $TT_REPORT_ON_THE_SPOT (report"\
+		"each error as it occurs), $TT_REPORT_AT_THE_END (report at the end of"\
+		"all tests)."
+	ap_add_opt_str "i,include-fcts" INC_FCTS "" \
+		"Set a selection of test functions to run. Only those test"\
+		"functions will be run, if they exist. The value is a"\
+		"comma separated list of functions names."
+	ap_add_opt_str "e,exclude-fcts" EXC_FCTS "" \
+		"Set a selection of test functions to exclude. Those test"\
+		"functions will never be run. The value is a"\
+		"comma separated list of functions names."
+	ap_add_opt_str "j,include-files" INC_FILES "" \
+		"Set a selection of test files to run. Only those test"\
+		"files will be run, if they exist. The value is a"\
+		"comma separated list of files names."
 	ap_add_opt_str "f,file-pattern" FILE_PATTERN \
 		"$(tt_get_default_file_pattern)" \
 		"Redefine the default regular expression for filtering test files in"\
 		"folders."
+	ap_add_opt_str "x,fct-prefix" FCT_PREFIX "$(tt_get_default_fct_prefix)"\
+		"A regular expression use to identify test functions to run"\
+		"automatically."\
+		"The expression reprensents the prefix function names must match."\
+		"Only used when --autorun flag is enabled (default)."
+	ap_add_opt_oflags "autorun" AUTORUN 1 \
+		"Run automatically the the found test functions."\
+		"Do run automatically the test functions matching the function prefix."
+	ap_add_opt_flag "p,print" PRINT "Print live output of test functions."
+	ap_add_pos_max TOTEST "A list of teste files or folders. The files will"\
+		"be sourced and if --autorun is enabled (default) all functions"\
+		"matching the function prefix (-x) will be executed."\
+		"Folders will be searched for files matching the file pattern (-f) and"\
+		"sourced."
 	ap_read_args "$@"
 
 	return 0
-
-	# Read options
-	while true ; do
-		case $1 in
-			--no-autorun)       AUTORUN= ;;
-			-i|--include-fcts)  INCLUDE_FCTS="$2" ; shift ;;
-			-j|--include-files) INCLUDE_FILES="$2" ; shift ;;
-			-p|--print)         PRINT=$YES ;;
-			-q|--quit-first)    QUIT_ON_FIRST_ERROR=$YES ;;
-			-r|--report)        REPORT="$2" ; shift ;;
-			-x|--fct-prefix)    FCT_PREFIX="$2" ; shift ;;
-			-) error "Illegal option $1." ;;
-			--) error "Illegal option $1." ;;
-			--*) error "Illegal option $1." ;;
-			-?) error "Unknown option $1." ;;
-			-[^-]*) split_opt=$(echo $1 | sed 's/^-//' | sed 's/\([a-zA-Z]\)/ -\1/g') ; set -- $1$split_opt "${@:2}" ;;
-			*) break
-		esac
-		shift
-	done
-
-	# Read remaining arguments as a list of folders and/or files
-	if [ -n "$*" ] ; then
-		TOTEST=("$@")
-	else
-		TOTEST=()
-	fi
-
-	# Check reporter
-	[[ $REPORT == $AT_THE_END || $REPORT == $ON_THE_SPOT ]] || error "Unknown reporter $REPORT."
 }
 
 function main {
@@ -116,14 +62,20 @@ function main {
 	# Read arguments
 	read_args "$@"
 
+	# Set options
+	tt_set_reporter "$REPORT"
+	[[ -z $PRINT ]] || tt_enable_live_printing
+	[[ -z $QUIT_ON_FIRST_ERROR ]] || tt_enable_quit_on_first_error
+
 	# Run
-	tt_run_tests "$FILE_PATTERN" "$INCLUDE_FILES" "${TOTEST[@]}"
+	tt_run_tests "$FILE_PATTERN" "$INC_FILES" "$AUTORUN" "$FCT_PREFIX" \
+		"$INC_FCTS" "$EXC_FCTS" "${TOTEST[@]}"
 
 	# Finalize
-	tt_finalize_tests
+	tt_finalize_tests || return 1
 
 	return 0
 }
 
-main "$@"
+main "$@" || exit 1
 exit 0
