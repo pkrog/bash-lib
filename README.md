@@ -126,7 +126,7 @@ Assertions start all with the prefix `tt_expect_` and their call need to be
 followed by ` || return 1` in order to report a failure.
 Some assertions take a custom message to be displayed in case of failure.
 
-### Success/failure assertions
+#### Success/failure assertions
 
 `tt_expect_success` tests the success of a command.
 
@@ -140,13 +140,18 @@ tt_expect_success my_command || return 1
 tt_expect_success my_command arg1 arg2 || return 1
 ```
 
-   tt_expect_success_in_n_tries
-                    Test that a command succeeds before n tries.
-                    Arg. 1: Number of tries.
-                    Remaining arguments: command.
-                    Example:
-                       tt_expect_success_in_n_tries 3 my_command || return 1
-                       tt_expect_success_in_n_tries 3 my_command arg1 || return 1
+`tt_expect_success_in_n_tries` tests that a command succeeds before n tries.
+
+| Argument | Description |
+|  :---:   | :---        |
+|    1     | Number of tries.    |
+|    *     | Command.    |
+
+Example:
+```sh
+tt_expect_success_in_n_tries 3 my_command || return 1
+tt_expect_success_in_n_tries 3 my_command arg1 || return 1
+```
 
    tt_expect_failure   Test the failure of a command.
                     Arguments: command.
