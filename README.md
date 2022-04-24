@@ -1,4 +1,8 @@
 # bash-lib
+<!-- TODO enable testing and codecov.
+[![Build Status](https://travis-ci.org/pkrog/bash-testthat.svg?branch=master)](https://travis-ci.org/pkrog/bash-testthat)
+[![codecov](https://codecov.io/gh/pkrog/bash-testthat/branch/master/graph/badge.svg?token=4QNHAHECYQ)](https://codecov.io/gh/pkrog/bash-testthat)
+-->
 
 A bash library to ease script development.
 The library is divided in module files to be loaded using the `source` command.
@@ -15,7 +19,7 @@ avoid collisions with your own script.
 
 ## testthat
 
-`testthat` library is a test library for testing bash functions and programs.
+The `testthat` library is a test library for testing bash functions and programs.
 
 When inside a test script, you have first to define context:
 ```bash
@@ -38,19 +42,103 @@ function test_myFct {
 Do not forget to append ` || return 1` to the assertion call, otherwise no
 error will be reported in case of failure.
 
+### Script
+
+The `testthat` library (`testthat.sh` file) comes along a script (`testthat`)
+designed to help you write tests for a command line program, written in any
+language, or to test bash functions.
+
+In particular, the framework provides functions for testing CSV files that you
+use as inputs or outputs of your program.
+
+The `testthat` script can be run on individual test scripts or folders
+containing test scripts.  You can even specify a mix of them on the command
+line:
+```sh
+testthat myfirst_script.sh myfolderA mysecond_script.sh myfolderB
+```
+
+Running individual scripts is done by listing the script paths on the command line:
+```sh
+testthat myfirst_script.sh mysecond_script.sh my/other/script.sh
+```
+The scripts will be run in the specified order.
+
+If you put your test scripts inside a single folder (called here `test`) you
+call `testthat` on that folder:
+```sh
+testthat test
+```
+
+Only the scripts named `test-*.sh` will be run by `testthat`.
+The scripts will be run in **alphabetical order**.
+
+The default exact regular expression used by `testthat` is:
+`[Tt][Ee][Ss][Tt][-._].*\.sh`.
+Thus you have a little flexibility in naming your test files by default.
+If this is not sufficient, you can still redefine this pattern by using the
+`-f` command line argument.
+The pattern format must be a POSIX extended regular expression as required by
+the `=~` comparison operator provided by the `[[` bash command.
+
+### Writing a test script
+
+A test scripts is composed of functions in which assertions (i.e.: the tests)
+are written.
+The functions are called individually with some description message that will
+be printed in case of failure.
+
+Here is a full example:
+```sh
+function test_someStuff {
+	tt_expect_num_eq 1 2 || return 1
+}
+
+tt_context "Running some test for an example"
+tt_test_that "Some stuff is running correctly." test_someStuff
+```
+The `tt_context` call define a title for the tests that will follow. It will be
+printed in the output.
+The `tt_test_that` function calls the test function `test_someStuff` and in
+case of failure will display the message specified.
+Inside the `test_someStuff` function you have to call assertions in order to
+test code.
+
+In this example we use the assertion `tt_expect_num_eq` (all assertions start
+with `tt_expect_` as a prefix), which tests the equality of two numeric
+numbers.
+In our case the two numbers `1` and `2` will lead to a failure of the test.
+But, please, note that in order to activate the failure it is **compulsory** to
+append ` || return 1` to the assertion call, otherwise no failure will be
+reported.
+
+Each assertion will either lead to the printing of a dot (`.`) character in
+case of success or another character in case of failure.
+At the end of tests, each character printed to indicate a failure will again be
+printed along with the message provided to the `tt_test_that` call and the call
+stack.
+
+For a full list of assertions, see the chapter about *Assertions*.
+
 ### Assertions
 
-   Assertions start all with the prefix "tt_expect_" and need to be followed by
-   " || return 1" in order to report a failure.
-   Some assertions take a custom message to be displayed in case of failure.
+Assertions start all with the prefix `tt_expect_` and their call need to be
+followed by ` || return 1` in order to report a failure.
+Some assertions take a custom message to be displayed in case of failure.
 
-Success/failure assertions:
+### Success/failure assertions
 
-   tt_expect_success   Test the success of a command.
-                    Arguments: command.
-                    Example:
-                       tt_expect_success my_command || return 1
-                       tt_expect_success my_command arg1 arg2 || return 1
+`tt_expect_success` tests the success of a command.
+| -------- | ----------- |
+| Argument | Description |
+| -------- | ----------- |
+|     *    | Command.    |
+| -------- | ----------- |
+Example:
+```sh
+tt_expect_success my_command || return 1
+tt_expect_success my_command arg1 arg2 || return 1
+```
 
    tt_expect_success_in_n_tries
                     Test that a command succeeds before n tries.
