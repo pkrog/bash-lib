@@ -14,6 +14,12 @@ source "$(dirname $BASH_SOURCE)/logging.sh"
 
 OS_DRYRUN=
 OS_LOCK_FILE="$HOME/.$(basename $0).lock"
+_OS_PRINT_COMMANDS=
+
+function os_enable_cmd_printing {
+	_OS_PRINT_COMMANDS=1
+	return 0
+}
 
 function os_exec {
 	# Run a command
@@ -22,13 +28,14 @@ function os_exec {
 
 	if [[ -z $OS_DRYRUN ]] ; then
 		if command -v $1 2>&1 >/dev/null ; then
+			[[ -z $_OS_PRINT_COMMANDS ]] || lg_info "Running: $*"
 			"$@"
 			status=$?
 		else
 			lg_error "Command \"$1\" is not available."
 		fi
 	else
-		echo "$*"
+		lg_info "Would run: $*"
 	fi
 
 	return $status
