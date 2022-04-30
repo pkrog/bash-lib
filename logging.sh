@@ -22,15 +22,7 @@ _LG_DEBUG_COLOR=$'\e[0;33m'
 _LG_INFO_COLOR=$'\e[0;32m'
 
 function lg_enable_color {
-
-	local enable="$1"
-
-	if [[ -n $enable ]] ; then
-		_LG_COLOR=1
-	else
-		_LG_COLOR=
-	fi
-
+	_LG_COLOR=1
 	return 0
 }
 
