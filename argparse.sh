@@ -620,7 +620,7 @@ function _ap_process_opt {
 
 		# Set value
 		if [[ ${_AP_OPT_NMAX[$opt]} -eq 1 ]] ; then
-			eval "$var_name=$v"
+			eval "$var_name=\"$v\""
 		else
 			eval "$var_name+=(\"$v\")"
 		fi
@@ -694,7 +694,7 @@ function _ap_read_pos_args {
 
 			# Set value
 			if [[ $nvals -eq 1 ]] ; then
-				eval "$var=$1"
+				eval "$var=\"$1\""
 			else
 				eval "$var+=(\"$1\")"
 			fi
