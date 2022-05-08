@@ -11,6 +11,7 @@ if [[ -z $_BASH_LIB_EMBEDDED ]] ; then
 fi
 
 _AP_INDENT="  "
+_FORCE_DOUBLE_DASH=false
 
 source "$(dirname $BASH_SOURCE)/logging.sh"
 
@@ -35,20 +36,24 @@ function ap_reset_args {
 	declare -gA _AP_OPT_TYPE=()
 	declare -gA _AP_OPT_DEFAULT=()
 	declare -gA _AP_OPT_VALUE=()
-	declare -gA _AP_OPT_NMIN=() # Minimum number of times to set the option.
-	declare -gA _AP_OPT_NMAX=() # Maximum number of times to set the option.
+	declare -gA _AP_OPT_NMIN=() # Minimum number of times the option has to set.
+	declare -gA _AP_OPT_NMAX=() # Maximum number of times the option can be set.
 	declare -gA _AP_OPT_NTIMES=() # Number of times the option has been
-	                              # actually defined.
+	                              # actually set.
 	declare -gA _AP_OPT_ENV_VAR=()
+
+	return 0
 }
 
 
 function ap_set_short_description {
 	_AP_SCRIPT_SHORT_DESC="$*"
+	return 0
 }
 
 function ap_set_long_description {
 	_AP_SCRIPT_LONG_DESC="$*"
+	return 0
 }
 
 function ap_use_env_var {
@@ -67,6 +72,13 @@ function ap_use_env_var {
 		"contain only '_' or upper ascii letters."
 	
 	_AP_USE_ENV_VAR=1
+
+	return 0
+}
+
+function ap_force_double_slash {
+	_FORCE_DOUBLE_DASH=true
+	return 0
 }
 
 function _ap_get_env_var_name {
@@ -75,6 +87,23 @@ function _ap_get_env_var_name {
 
 	declare -u envvar="${_AP_ENV_VAR_PREFIX}_$var"
 	echo "$envvar"
+	return 0
+}
+
+function _ap_get_longest_name {
+
+	local names="$1"
+	local longest=
+
+	local oldifs="$IFS"
+	IFS=,
+	for n in $names ; do
+		[[ ${#n} -gt ${#longest} ]] && longest=$n
+	done
+	IFS="$oldifs"
+
+	echo "$longest"
+	return 0
 }
 
 function _ap_define_name_and_aliases {
@@ -99,6 +128,8 @@ function _ap_define_name_and_aliases {
 	IFS="$oldifs"
 	[[ -n $name ]] || lg_error "No name definition for option (received"\
 		"names=\"$names\")."
+
+	return 0
 }
 
 function _ap_define_var_opt {
@@ -173,16 +204,6 @@ function ap_add_opt_str {
 	_ap_define_var_opt "$names" "$var" str "$desc" "$default"
 }
 
-function ap_add_opt_str_mult {
-
-	local names="$1"
-	local var="$2"
-	shift 2
-	local desc="$*"
-
-	_ap_define_var_opt "$names" "$var" str "$desc" "$default" "" 0 0
-}
-
 function ap_add_opt_flag {
 	# Flag (empty by default and non-empty if set)
 
@@ -232,7 +253,20 @@ function ap_add_opt_sflag {
 	shift 3
 	local desc="$*"
 
+	[[ -n $value ]] || value=$(_ap_get_longest_name "$names")
 	_ap_define_var_opt "$names" "$var" flag "$desc" "" "$value"
+}
+
+function ap_add_opt_sflag_arr {
+
+	local names="$1"
+	local var="$2"
+	local value="$3"
+	shift 3
+	local desc="$*"
+
+	[[ -n $value ]] || value=$(_ap_get_longest_name "$names")
+	_ap_define_var_opt "$names" "$var" flagarr "$desc" "" "$value"
 }
 
 function ap_add_opt_inc {
@@ -242,7 +276,7 @@ function ap_add_opt_inc {
 	shift 2
 	local desc="$*"
 
-	_ap_define_var_opt "$names" "$var" inc "$desc"
+	_ap_define_var_opt "$names" "$var" inc "$desc" 0 "" 0 0
 }
 
 function ap_add_opt_fct {
@@ -369,12 +403,18 @@ function _ap_print_usage {
 	[[ ${#_AP_OPTS[@]} -gt 0 ]] && echo -n " [options]"
 
 	# Position arguments
-	for pos in ${_AP_POS_VAR[@]} ; do
-		echo -n " $pos"
-	done
+	if [[ ${#_AP_POS_VAR[@]} -gt 0 ]] ; then
+		$_FORCE_DOUBLE_DASH && echo -n "[-- "
+		for pos in ${_AP_POS_VAR[@]} ; do
+			echo -n " $pos"
+		done
+		$_FORCE_DOUBLE_DASH && echo -n "]"
+	fi
 
 	# New line
 	echo
+
+	return 0
 }
 
 function ap_print_version {
@@ -551,6 +591,18 @@ function _ap_check_enum_value {
 	return $status
 }
 
+function _ap_check_value {
+	local opt="$1"
+	local t="$2"
+	local v="$3"
+	local values="$4"
+	[[ $t != int || $v =~ ^-?[0-9]+$ ]] || lg_error "Option" \
+		$(_ap_get_full_opt_flag $opt) " expects an integer value, not \"$v\"."
+	[[ $t != enum ]] || _ap_check_enum_value "$v" "$values" || \
+		lg_error "Value \"$v\" is not allowed for option" \
+		$(_ap_get_full_opt_flag $opt)"."
+}
+
 function _ap_process_opt {
 
 	local nshift=0
@@ -578,64 +630,39 @@ function _ap_process_opt {
 		[[ -n $var_name ]] || declare -g "$var_name=0"
 		eval "((++$var_name))"
 
-	# Flag
-	elif [[ $var_type == flag || $var_type == rflag ]] ; then
-		nshift=1
-		declare -g "${_AP_OPT_VAR[$opt]}=${_AP_OPT_VALUE[$opt]}"
-
-	# Enumeration
-	elif [[ $var_type == enum ]] ; then
+	# Array
+	elif [[ $var_type == *arr ]] ; then
 		local v="$2"
 		nshift=2
-		_ap_check_enum_value "$v" "${_AP_OPT_VALUE[$opt]}" || \
-			lg_error "Value \"$v\" is not allowed for option $opt."
+		[[ $var_type == flagarr ]] && v="${_AP_OPT_VALUE[$opt]}" && nshift=1
+		local base_type=${var_type%arr}
+		_ap_check_value $opt $base_type "$v" "${_AP_OPT_VALUE[$opt]}"
+		local var_name=${_AP_OPT_VAR[$opt]}
+		[[ ${_AP_OPT_NTIMES[$opt]} -eq 0 ]] && declare -ga "$var_name=()"
+		eval "$var_name+=(\"$v\")"
+
+	# Enum, Integer & String
+	elif [[ " enum flag rflag int str " == *" $var_type "* ]] ; then
+		local v="$2"
+		nshift=2
+		[[ " flag rflag " == *" $var_type "* ]] && v="${_AP_OPT_VALUE[$opt]}"\
+			&& nshift=1
+		_ap_check_value $opt $var_type "$v" "${_AP_OPT_VALUE[$opt]}"
 		local var_name=${_AP_OPT_VAR[$opt]}
 		declare -g "$var_name=$v"
 
-	# Integer
-	elif [[ $var_type == int ]] ; then
-		local v="$2"
-		nshift=2
-		[[ $v =~ ^-?[0-9]+$ ]] || lg_error "$origopt expects an"\
-			"integer value, not \"$v\"."
-		local var_name=${_AP_OPT_VAR[$opt]}
-		declare -g "$var_name=$v"
-
-	# String
-	elif [[ $var_type == str ]] ; then
-		local v="$2"
-		nshift=2
-
-		# Get var name
-		local var_name=${_AP_OPT_VAR[$opt]}
-
-		# Define variable
-		if [[ ${_AP_OPT_NTIMES[$opt]} -eq 0 ]] ; then
-			if [[ ${_AP_OPT_NMAX[$opt]} -eq 1 ]] ; then
-				declare -g "$var_name="
-			else
-				declare -ga "$var_name=()"
-			fi
-		fi
-
-		# Set value
-		if [[ ${_AP_OPT_NMAX[$opt]} -eq 1 ]] ; then
-			eval "$var_name=\"$v\""
-		else
-			eval "$var_name+=(\"$v\")"
-		fi
-
-		# Increment counter
-		eval "_AP_OPT_NTIMES+=(\"$opt\" \$((${_AP_OPT_NTIMES[$opt]} + 1)))"
-
-		[[ ${_AP_OPT_NMAX[$opt]} -eq 0 || \
-			${_AP_OPT_NTIMES[$opt]} -le ${_AP_OPT_NMAX[$opt]} ]] || \
-			lg_error "You have used too many times the option '$opt'."
 	else
 		lg_error "Unknown type $var_type for argument "\
 			$(_ap_get_full_opt_flag "$opt")"."
 
 	fi
+
+	# Increment counter of use for this option
+	eval "_AP_OPT_NTIMES+=(\"$opt\" \$((${_AP_OPT_NTIMES[$opt]} + 1)))"
+	[[ ${_AP_OPT_NMAX[$opt]} -eq 0 || \
+		${_AP_OPT_NTIMES[$opt]} -le ${_AP_OPT_NMAX[$opt]} ]] || \
+		lg_error "You have used too many times the option" \
+			'"'$(_ap_get_full_opt_flag $opt)'".'
 
 	return $nshift
 }
@@ -733,14 +760,18 @@ function ap_read_args {
 				;;& # Go on to next case
 
 			# Handled unknown option
-			-|--|--*|-?) lg_error "Illegal option $1." ;;
+			-|--*|-?) lg_error "Illegal option $1." ;;
 
 			# Split short options joined together
 			-[^-]*) split_opt=$(echo $1 | sed 's/^-//' | \
-				sed 's/\([a-zA-Z]\)/ -\1/g') ; set -- $1$split_opt "${@:2}" ; shift ;;
+				sed 's/\([a-zA-Z]\)/ -\1/g') ; set -- $1$split_opt "${@:2}" ; \
+				shift ;;
 
 			# Quit loop for reading remaining arguments as positional arguments
-			*) break
+			--) shift ; break ;;
+			*) [[ -n "$1" ]] && $_FORCE_DOUBLE_DASH && \
+				lg_error "Forbidden argument \"$1\"." ;\
+				break ;;
 		esac
 	done
 
