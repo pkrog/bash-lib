@@ -10,3 +10,4 @@ if [[ -z $_BASH_LIB_EMBEDDED ]] ; then
 	_AL_SOURCED=1
 fi
 
+declare -a _AL_ACTIONS=()
