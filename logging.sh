@@ -17,7 +17,7 @@ LG_FILE="$HOME/.$(basename $0).log"
 LG_FILE_MAX_SIZE=10000 # 10 KiB
 _LG_COLOR=1
 _LG_WARNING_COLOR=$'\e[1;35m'
-_LG_ERROR_COLOR=$'\e[1;35m'
+_LG_ERROR_COLOR=$'\e[1;31m'
 _LG_DEBUG_COLOR=$'\e[0;33m'
 _LG_INFO_COLOR=$'\e[0;32m'
 
