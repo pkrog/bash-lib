@@ -58,3 +58,13 @@ function test_pos {
 	ap_read_args f1 f2 f3 f4 || return 1
 	tt_expect_num_eq ${#FILES[@]} 4 || return 1
 }
+
+function test_bflag {
+
+	ap_reset_args || return 1
+	ap_add_opt_bflag 'b' 'BVAR' || return 1
+	read_args || return 1
+	tt_expect_failure $BVAR || return 1
+	read_args '-b' || return 1
+	tt_expect_success $BVAR || return 1
+}

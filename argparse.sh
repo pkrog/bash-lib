@@ -17,7 +17,8 @@ source "$(dirname $BASH_SOURCE)/logging.sh"
 
 maj=4
 min=4
-[[ $BASH_VERSINFO[0] -ge $maj && $BASH_VERSINFO[1] -ge $min ]] || \
+[[ ${BASH_VERSINFO[0]} -gt $maj || ( ${BASH_VERSINFO[0]} -ge $maj \
+	&& ${BASH_VERSINFO[1]} -ge $min ) ]] || \
 	lg_error "argparse library requests bash version $maj.$min or above."
 
 function ap_reset_args {
@@ -218,6 +219,17 @@ function ap_add_opt_flag {
 	local desc="$*"
 
 	_ap_define_var_opt "$names" "$var" flag "$desc" "" 1
+}
+
+function ap_add_opt_bflag {
+	# Flag (false by default and true if set)
+
+	local names="$1"
+	local var="$2"
+	shift 2
+	local desc="$*"
+
+	_ap_define_var_opt "$names" "$var" flag "$desc" "false" "true"
 }
 
 function ap_add_opt_rflag {
