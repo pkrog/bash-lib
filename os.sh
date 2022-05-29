@@ -130,6 +130,7 @@ function os_check_commands {
 }
 
 function os_get_first_cmd {
+	# Select the first available command in a list
 
 	local status=1
 
