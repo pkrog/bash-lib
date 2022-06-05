@@ -14,6 +14,7 @@ fi
 function ar_contains {
 
 	local value="$1"
+	shift
 
 	for v in "$@" ; do
 		[[ "$v" == "$value" ]] && return 0
