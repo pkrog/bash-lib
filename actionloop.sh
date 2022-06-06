@@ -15,6 +15,7 @@ source "$(dirname $BASH_SOURCE)/logging.sh"
 
 function al_reset {
 	declare -gA _AL_ACTION_FCT=()
+	declare -ga _AL_ACTIONS_ORDER=()
 	return 0
 }
 
@@ -27,15 +28,38 @@ function al_def_action {
 }
 
 function al_def_actions_order {
+
+	declare -a order=("$@")
+
+	# Check actions
+	for a in "${order[@]}" ; do
+		[[ " ${!_AL_ACTION_FCT[@]} " == *" $a "* ]] || \
+			lg_error "Unknown action \"$a\"."
+	done
+
+	# Set order
+	_AL_ACTIONS_ORDER=("${order[@]}")
+
 	return 0
 }
 
 function al_run_actions {
 
+	declare -a actions=("$@")
 	local retval=0
 
+	# Order actions
+	declare -a reordered=()
+	for a in "${_AL_ACTIONS_ORDER[@]}" ; do # Put ordered actions first
+		[[ " ${actions[@]} " == *" $a "* ]] && reordered+=($a)
+	done
+	for a in "${actions[@]}" ; do # Put all other actions
+		[[ " ${reordered[@]} " != *" $a "* ]] && reordered+=($a)
+	done
+	actions=("${reordered[@]}")
+
 	# Loop on all actions in order
-	for a in "$@" ; do
+	for a in "${actions[@]}" ; do
 		ar_contains "$a" "${!_AL_ACTION_FCT[@]}" || \
 			lg_error "Action \"$a\" is unknown."
 		${_AL_ACTION_FCT[$a]}
