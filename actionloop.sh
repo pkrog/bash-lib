@@ -55,7 +55,6 @@ function al_def_co_actions {
 function al_run_actions {
 
 	declare -a actions=("$@")
-	local retval=0
 	_al_check_actions "${actions[@]}"
 
 	# Add co-actions
@@ -78,11 +77,12 @@ function al_run_actions {
 	# Loop on all actions in order
 	for a in "${actions[@]}" ; do
 		${_AL_ACTION_FCT[$a]}
-		retval=$?
-		[[ $retval -eq 0 ]] || break
+		status=$?
+		[[ $status -eq 0 ]] || \
+			lg_error "Action \"$a\" failed with status $status."
 	done
 
-	return $retval
+	return 0
 }
 
 al_reset
