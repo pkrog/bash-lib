@@ -16,6 +16,7 @@ source "$(dirname $BASH_SOURCE)/logging.sh"
 function al_reset {
 	declare -gA _AL_ACTION_FCT=()
 	declare -ga _AL_ACTIONS_ORDER=()
+	declare -gA _AL_CO_ACTIONS=()
 	return 0
 }
 
@@ -27,19 +28,27 @@ function al_def_action {
 	return 0
 }
 
-function al_def_actions_order {
-
-	declare -a order=("$@")
-
-	# Check actions
-	for a in "${order[@]}" ; do
-		[[ " ${!_AL_ACTION_FCT[@]} " == *" $a "* ]] || \
+function _al_check_actions {
+	for a in "$@" ; do
+		ar_contains "$a" "${!_AL_ACTION_FCT[@]}" || \
 			lg_error "Unknown action \"$a\"."
 	done
+	return 0
+}
 
-	# Set order
+function al_def_actions_order {
+	declare -a order=("$@")
+	_al_check_actions "${order[@]}"
 	_AL_ACTIONS_ORDER=("${order[@]}")
+	return 0
+}
 
+function al_def_co_actions {
+	local action="$1"
+	shift
+	declare -a coactions=("$@")
+	_al_check_actions "$action" "${coactions[@]}"
+	_AL_CO_ACTIONS+=("$action" "${coactions[*]}")
 	return 0
 }
 
@@ -47,6 +56,14 @@ function al_run_actions {
 
 	declare -a actions=("$@")
 	local retval=0
+	_al_check_actions "${actions[@]}"
+
+	# Add co-actions
+	for a in "${actions[@]}" ; do
+		for coa in ${_AL_CO_ACTIONS[$a]} ; do
+			ar_contains "$coa" "${actions[@]}" || actions+=("$coa")
+		done
+	done
 
 	# Order actions
 	declare -a reordered=()
@@ -60,8 +77,6 @@ function al_run_actions {
 
 	# Loop on all actions in order
 	for a in "${actions[@]}" ; do
-		ar_contains "$a" "${!_AL_ACTION_FCT[@]}" || \
-			lg_error "Action \"$a\" is unknown."
 		${_AL_ACTION_FCT[$a]}
 		retval=$?
 		[[ $retval -eq 0 ]] || break
