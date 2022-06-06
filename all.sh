@@ -1,3 +1,4 @@
+source "$(dirname $BASH_SOURCE)/actionloop.sh"
 source "$(dirname $BASH_SOURCE)/argparse.sh"
 source "$(dirname $BASH_SOURCE)/array.sh"
 source "$(dirname $BASH_SOURCE)/deprecate.sh"
